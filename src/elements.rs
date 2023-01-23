@@ -39,6 +39,9 @@
 // The token element can only be contained in the following elements: audio, emphasis, lang, lookup, prosody, speak, p, s, voice.
 //
 // The say-as element has three attributes: interpret-as, format, and detail. The interpret-as attribute is always required; the other two attributes are optional. The legal values for the format attribute depend on the value of the interpret-as attribute.
+use std::collections::HashMap;
+use std::convert::Infallible;
+use std::str::FromStr;
 use std::time::Duration;
 
 // Structural elements
@@ -54,7 +57,8 @@ use std::time::Duration;
 // * lang
 //
 
-pub enum Elements {
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum SsmlElement {
     Speak,
     Lexicon,
     Lookup,
@@ -76,6 +80,137 @@ pub enum Elements {
     Mark,
     Description,
     Custom(String),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum ParsedElement {
+    Speak(SpeakAttributes),
+    Lexicon,
+    Lookup,
+    Meta,
+    Metadata,
+    Paragraph,
+    Sentence,
+    Token,
+    Word,
+    SayAs,
+    Phoneme,
+    Sub,
+    Lang,
+    Voice,
+    Emphasis,
+    Break,
+    Prosody,
+    Audio,
+    Mark,
+    Description,
+    Custom((String, HashMap<String, String>)),
+}
+
+impl From<&ParsedElement> for SsmlElement {
+    fn from(elem: &ParsedElement) -> Self {
+        match elem {
+            ParsedElement::Speak(_) => Self::Speak,
+            ParsedElement::Lexicon => Self::Lexicon,
+            ParsedElement::Lookup => Self::Lookup,
+            ParsedElement::Meta => Self::Meta,
+            ParsedElement::Metadata => Self::Metadata,
+            ParsedElement::Paragraph => Self::Paragraph,
+            ParsedElement::Sentence => Self::Sentence,
+            ParsedElement::Token => Self::Token,
+            ParsedElement::Word => Self::Word,
+            ParsedElement::SayAs => Self::SayAs,
+            ParsedElement::Phoneme => Self::Phoneme,
+            ParsedElement::Sub => Self::Sub,
+            ParsedElement::Lang => Self::Lang,
+            ParsedElement::Voice => Self::Voice,
+            ParsedElement::Emphasis => Self::Emphasis,
+            ParsedElement::Break => Self::Break,
+            ParsedElement::Prosody => Self::Prosody,
+            ParsedElement::Audio => Self::Audio,
+            ParsedElement::Mark => Self::Mark,
+            ParsedElement::Description => Self::Description,
+            ParsedElement::Custom((s, _)) => Self::Custom(s.to_string()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct SpeakAttributes {
+    pub lang: Option<String>,
+    pub base: Option<String>,
+    pub on_lang_failure: Option<String>, // TODO make into OnLanguageFailure
+}
+
+/// The onlangfailure attribute is an optional attribute that contains one value
+/// from the following enumerated list describing the desired behavior of the
+/// synthesis processor upon language speaking failure. A conforming synthesis
+/// processor must report a language speaking failure in addition to taking th
+/// action(s) below.
+///
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum OnLanguageFailure {
+    /// If a voice exists that can speak the language, the synthesis processor
+    /// will switch to that voice and speak the content. Otherwise, the
+    /// processor chooses another behavior (either ignoretext or ignorelang).
+    ChangeVoice,
+    /// The synthesis processor will not attempt to render the text that is in
+    /// the failed language.
+    IgnoreText,
+    /// The synthesis processor will ignore the change in language and speak as
+    /// if the content were in the previous language.
+    IgnoreLang,
+    /// The synthesis processor chooses the behavior (either changevoice, ignoretext,
+    /// or ignorelang).
+    ProcessorChoice,
+}
+
+impl FromStr for OnLanguageFailure {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = match s {
+            "changevoice" => Self::ChangeVoice,
+            "ignoretext" => Self::IgnoreText,
+            "ignorelang" => Self::IgnoreLang,
+            "processorchoice" => Self::ProcessorChoice,
+            _ => todo!(),
+        };
+        Ok(s)
+    }
+}
+
+impl FromStr for SsmlElement {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = match s {
+            "speak" => Self::Speak,
+            "lexicon" => Self::Lexicon,
+            "lookup" => Self::Lookup,
+            "meta" => Self::Meta,
+            "metadata" => Self::Metadata,
+            "p" => Self::Paragraph,
+            "s" => Self::Sentence,
+            "token" => Self::Token,
+            "w" => Self::Word,
+            "say-as" => Self::SayAs,
+            "phoneme" => Self::Phoneme,
+            "sub" => Self::Sub,
+            "lang" => Self::Lang,
+            "voice" => Self::Voice,
+            "emphasis" => Self::Emphasis,
+            "break" => Self::Break,
+            "prosody" => Self::Prosody,
+            "audio" => Self::Audio,
+            "mark" => Self::Mark,
+            "description" => Self::Description,
+            e => Self::Custom(e.to_string()),
+        };
+        Ok(s)
+    }
 }
 
 // Prosody and style

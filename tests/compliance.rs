@@ -75,7 +75,7 @@ fn audio_example() {
     assert_eq!(result.get_text().trim(),
                "Today we preview the latest romantic music from Example. Hear what the Software Reviews said about Example's newest hit. He sings about issues that touch us all. Here's a sample. Would you like to buy it?");
 
-    //    todo!()
+    //todo!()
 }
 
 /// Example SSML taken from Appendix E in the SSML specification which
@@ -145,7 +145,9 @@ fn ipa_support() {
         r#"The title of the movie is: La vita è bella (Life is beautiful), which is directed by Roberto Benigni"#
     );
 
-    //   todo!()
+    println!("{:#?}", result);
+
+    todo!()
 }
 
 #[test]
@@ -169,4 +171,33 @@ fn google_tts_example() {
     );
 
     //  todo!();
+}
+
+#[test]
+fn microsoft_custom_tags() {
+    let ssml = r#"<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="string">
+    <mstts:backgroundaudio src="string" volume="string" fadein="string" fadeout="string"/>
+    <voice name="string">
+        <audio src="string"></audio>
+        <bookmark mark="string"/>
+        <break strength="string" time="string" />
+        <emphasis level="value"></emphasis>
+        <lang xml:lang="string"></lang>
+        <lexicon uri="string"/>
+        <math xmlns="http://www.w3.org/1998/Math/MathML"></math>
+        <mstts:express-as style="string" styledegree="value" role="string"></mstts:express-as>
+        <mstts:silence type="string" value="string"/>
+        <mstts:viseme type="string"/>
+        <p></p>
+        <phoneme alphabet="string" ph="string"></phoneme>
+        <prosody pitch="value" contour="value" range="value" rate="value" volume="value"></prosody>
+        <s></s>
+        <say-as interpret-as="string" format="string" detail="string"></say-as>
+        <sub alias="string"></sub>
+    </voice>
+</speak>"#;
+    let result = parse_ssml(ssml).unwrap();
+    assert_eq!(result.get_text().trim(), "");
+
+    //todo!();
 }

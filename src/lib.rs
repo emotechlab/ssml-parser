@@ -1,3 +1,4 @@
+use crate::parser::Span;
 use indexmap::IndexMap;
 /// Valid SSML:
 ///
@@ -23,8 +24,10 @@ use std::time::Duration;
 pub mod elements;
 pub mod parser;
 
+#[derive(Clone, Debug)]
 pub struct Ssml {
     text: String,
+    pub tags: Vec<Span>,
 }
 
 impl Ssml {
