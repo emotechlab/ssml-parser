@@ -204,7 +204,9 @@ fn parse_element<R: io::BufRead>(
 }
 
 fn parse_speak<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
-    let lang = elem.try_get_attribute("lang")?;
+    let lang = elem
+        .try_get_attribute("lang")?
+        .or_else(|| elem.try_get_attribute("xml:lang").unwrap_or_default());
     let lang = if let Some(lang) = lang {
         Some(lang.decode_and_unescape_value(reader)?.to_string())
     } else {

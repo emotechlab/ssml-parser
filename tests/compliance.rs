@@ -1,3 +1,4 @@
+use ssml_parser::elements::*;
 use ssml_parser::parser::parse_ssml;
 
 /// Example SSML taken from Appendix E in the SSML specification which
@@ -27,10 +28,60 @@ fn simple_example() {
 
     let result = parse_ssml(ssml).unwrap();
 
-    assert_eq!(result.get_text().trim(), "You have 4 new messages. The first is from Stephanie Williams and arrived at 3:45pm. The subject is ski trip");
+    let whole_sentence = "You have 4 new messages. The first is from Stephanie Williams and arrived at 3:45pm. The subject is ski trip";
+
+    assert_eq!(result.get_text().trim(), whole_sentence);
 
     let tags = result.tags().collect::<Vec<_>>();
     assert_eq!(tags.len(), 7);
+
+    if let ParsedElement::Speak(s) = &tags[0].element {
+        assert_eq!(s.lang.as_ref().unwrap(), "en-US");
+        assert_eq!(result.get_text_from_span(&tags[0]).trim(), whole_sentence);
+    } else {
+        panic!("Tag 0 wrong: {:?}", tags[0]);
+    }
+
+    if let ParsedElement::Paragraph = &tags[1].element {
+        assert_eq!(result.get_text_from_span(&tags[1]).trim(), whole_sentence);
+    } else {
+        panic!("Tag 1 wrong: {:?}", tags[1]);
+    }
+
+    if let ParsedElement::Sentence = &tags[2].element {
+        assert_eq!(
+            result.get_text_from_span(&tags[2]).trim(),
+            "You have 4 new messages."
+        );
+    } else {
+        panic!("Tag 2 wrong: {:?}", tags[2]);
+    }
+
+    if let ParsedElement::Sentence = &tags[3].element {
+        assert_eq!(
+            result.get_text_from_span(&tags[3]).trim(),
+            "The first is from Stephanie Williams and arrived at 3:45pm."
+        );
+    } else {
+        panic!("Tag 3 wrong: {:?}", tags[3]);
+    }
+
+    assert_eq!(ParsedElement::Break, tags[4].element);
+
+    if let ParsedElement::Sentence = &tags[5].element {
+        assert_eq!(
+            result.get_text_from_span(&tags[5]).trim(),
+            "The subject is ski trip"
+        );
+    } else {
+        panic!("Tag 5 wrong: {:?}", tags[5]);
+    }
+
+    if let ParsedElement::Prosody = &tags[6].element {
+        assert_eq!(result.get_text_from_span(&tags[6]).trim(), "ski trip");
+    } else {
+        panic!("Tag 6 wrong: {:?}", tags[6]);
+    }
 
     //    todo!()
 }
