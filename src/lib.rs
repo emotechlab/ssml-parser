@@ -27,11 +27,20 @@ pub mod parser;
 #[derive(Clone, Debug)]
 pub struct Ssml {
     text: String,
-    pub tags: Vec<Span>,
+    tags: Vec<Span>,
 }
 
 impl Ssml {
     pub fn get_text(&self) -> &str {
         &self.text
+    }
+
+    pub fn get_text_from_span(&self, span: &Span) -> &str {
+        assert!(span.end <= self.text.len() && span.end >= span.start);
+        &self.text[span.start..span.end]
+    }
+
+    pub fn tags(&self) -> impl Iterator<Item = &Span> {
+        self.tags.iter()
     }
 }

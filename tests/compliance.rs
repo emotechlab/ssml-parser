@@ -29,6 +29,9 @@ fn simple_example() {
 
     assert_eq!(result.get_text().trim(), "You have 4 new messages. The first is from Stephanie Williams and arrived at 3:45pm. The subject is ski trip");
 
+    let tags = result.tags().collect::<Vec<_>>();
+    assert_eq!(tags.len(), 7);
+
     //    todo!()
 }
 

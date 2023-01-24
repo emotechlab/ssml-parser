@@ -135,7 +135,7 @@ impl From<&ParsedElement> for SsmlElement {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct SpeakAttributes {
     pub lang: Option<String>,
     pub base: Option<String>,

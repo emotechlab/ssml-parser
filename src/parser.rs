@@ -3,6 +3,7 @@ use crate::*;
 use anyhow::{bail, Result};
 use quick_xml::events::{BytesStart, BytesText, Event};
 use quick_xml::reader::Reader;
+use std::cmp::{Ord, Ordering};
 use std::collections::HashMap;
 use std::io;
 use std::str::from_utf8;
@@ -14,6 +15,23 @@ pub struct Span {
     pub start: usize,
     pub end: usize,
     pub element: ParsedElement,
+}
+
+impl Ord for Span {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // We want spans that start earlier to be orderered sooner, but if both spans start in same
+        // location then the one with the further ahead end is the later one
+        match self.start.cmp(&other.start) {
+            Ordering::Equal => other.end.cmp(&self.end),
+            ord => ord,
+        }
+    }
+}
+
+impl PartialOrd for Span {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 /// We're attaching no meaning to repeated whitespace, but things like space at end
@@ -121,11 +139,19 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                     }
                 }
             }
-            e => {
+            Event::Empty(e) => {
+                let (ty, element) = parse_element(e, &reader)?;
+                let span = Span {
+                    start: text_buffer.len(),
+                    end: text_buffer.len(),
+                    element,
+                };
+                tags.insert(0, span);
                 //panic!("Unexpected event: {:?}", e);
             }
         }
     }
+    tags.sort();
     Ok(Ssml {
         text: text_buffer,
         tags,
@@ -236,5 +262,38 @@ mod tests {
         assert!(parse_duration("1s 500ms").is_err());
         assert!(parse_duration("1").is_err());
         assert!(parse_duration("five score and thirty years").is_err());
+    }
+
+    #[test]
+    fn span_ordering() {
+        let a = Span {
+            start: 0,
+            end: 10,
+            element: ParsedElement::Speak(Default::default()),
+        };
+
+        let b = Span {
+            start: 0,
+            end: 5,
+            element: ParsedElement::Speak(Default::default()),
+        };
+
+        let c = Span {
+            start: 4,
+            end: 5,
+            element: ParsedElement::Speak(Default::default()),
+        };
+
+        let d = Span {
+            start: 11,
+            end: 15,
+            element: ParsedElement::Speak(Default::default()),
+        };
+
+        assert!(a < b);
+        assert!(b < c);
+        assert!(a < c);
+        assert!(a < d);
+        assert!(a == a);
     }
 }
