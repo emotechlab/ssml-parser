@@ -182,7 +182,7 @@ fn parse_element<R: io::BufRead>(
         SsmlElement::Lang => ParsedElement::Lang,
         SsmlElement::Voice => ParsedElement::Voice,
         SsmlElement::Emphasis => ParsedElement::Emphasis,
-        SsmlElement::Break => ParsedElement::Break,
+        SsmlElement::Break => parse_break(elem, reader)?,
         SsmlElement::Prosody => ParsedElement::Prosody,
         SsmlElement::Audio => ParsedElement::Audio,
         SsmlElement::Mark => ParsedElement::Mark,
@@ -229,6 +229,27 @@ fn parse_speak<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
         base,
         on_lang_failure,
     }))
+}
+
+fn parse_break<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let strength = elem.try_get_attribute("strength")?;
+    let strength = if let Some(strength) = strength {
+        let value = strength.decode_and_unescape_value(reader)?;
+        let value = Strength::from_str(&value)?;
+        Some(value)
+    } else {
+        None
+    };
+    let time = elem.try_get_attribute("time")?;
+    let time = if let Some(time) = time {
+        let value = time.decode_and_unescape_value(reader)?;
+        let duration = parse_duration(&value)?;
+        Some(duration)
+    } else {
+        None
+    };
+
+    Ok(ParsedElement::Break(BreakAttributes { strength, time }))
 }
 
 fn parse_paragraph<R: io::BufRead>(reader: &mut Reader<R>) -> Result<()> {
