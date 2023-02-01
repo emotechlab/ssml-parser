@@ -86,13 +86,13 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                     end: text_buffer.len(),
                     element: parse_speak(e, &reader)?,
                 };
-                open_tags.push((SsmlElement::Speak, span));
+                open_tags.push((SsmlElement::Speak, tags.len(), span));
                 // Okay we have speech top level here.
                 //todo!();
             }
             Event::Start(e) => {
                 if has_started {
-                    if !text_buffer.ends_with(char::is_whitespace)
+                    if !(text_buffer.is_empty() || text_buffer.ends_with(char::is_whitespace))
                         && matches!(e.local_name().as_ref(), b"s" | b"p")
                     {
                         // Need to add in a space as they're using tags instead
@@ -104,8 +104,7 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                         end: text_buffer.len(),
                         element,
                     };
-                    open_tags.push((ty, new_span));
-                    // We need attributes (for some things), a
+                    open_tags.push((ty, tags.len(), new_span));
                 }
             }
             Event::Comment(_)
@@ -131,9 +130,9 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                     // We have a close tag without an open!
                 } else {
                     // Okay time to close and remove tag
-                    let (_, mut span) = open_tags.remove(open_tags.len() - 1);
+                    let (_, pos, mut span) = open_tags.remove(open_tags.len() - 1);
                     span.end = text_buffer.len();
-                    tags.insert(0, span);
+                    tags.insert(pos, span);
                     if ssml_elem == SsmlElement::Speak && open_tags.is_empty() {
                         break;
                     }
@@ -146,8 +145,7 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                     end: text_buffer.len(),
                     element,
                 };
-                tags.insert(0, span);
-                //panic!("Unexpected event: {:?}", e);
+                tags.push(span);
             }
         }
     }
@@ -182,7 +180,7 @@ fn parse_element<R: io::BufRead>(
         SsmlElement::Lang => ParsedElement::Lang,
         SsmlElement::Voice => ParsedElement::Voice,
         SsmlElement::Emphasis => ParsedElement::Emphasis,
-        SsmlElement::Break => ParsedElement::Break,
+        SsmlElement::Break => parse_break(elem, reader)?,
         SsmlElement::Prosody => ParsedElement::Prosody,
         SsmlElement::Audio => ParsedElement::Audio,
         SsmlElement::Mark => ParsedElement::Mark,
@@ -229,6 +227,27 @@ fn parse_speak<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
         base,
         on_lang_failure,
     }))
+}
+
+fn parse_break<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let strength = elem.try_get_attribute("strength")?;
+    let strength = if let Some(strength) = strength {
+        let value = strength.decode_and_unescape_value(reader)?;
+        let value = Strength::from_str(&value)?;
+        Some(value)
+    } else {
+        None
+    };
+    let time = elem.try_get_attribute("time")?;
+    let time = if let Some(time) = time {
+        let value = time.decode_and_unescape_value(reader)?;
+        let duration = parse_duration(&value)?;
+        Some(duration)
+    } else {
+        None
+    };
+
+    Ok(ParsedElement::Break(BreakAttributes { strength, time }))
 }
 
 fn parse_paragraph<R: io::BufRead>(reader: &mut Reader<R>) -> Result<()> {

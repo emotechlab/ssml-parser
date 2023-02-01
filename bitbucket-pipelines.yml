@@ -1,0 +1,16 @@
+image: rust:latest
+pipelines:
+  default:
+    - step:
+        caches:
+          - cargo-cache
+        script:
+          - rustup component add rustfmt
+          - cargo fmt --manifest-path Cargo.toml --check
+          - cargo install cargo-audit
+          - cargo test -v 
+          - cargo audit 
+        
+definitions:
+  caches:
+    cargo-cache: ~/.cargo

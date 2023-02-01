@@ -39,6 +39,7 @@
 // The token element can only be contained in the following elements: audio, emphasis, lang, lookup, prosody, speak, p, s, voice.
 //
 // The say-as element has three attributes: interpret-as, format, and detail. The interpret-as attribute is always required; the other two attributes are optional. The legal values for the format attribute depend on the value of the interpret-as attribute.
+use anyhow::bail;
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::str::FromStr;
@@ -99,7 +100,7 @@ pub enum ParsedElement {
     Lang,
     Voice,
     Emphasis,
-    Break,
+    Break(BreakAttributes),
     Prosody,
     Audio,
     Mark,
@@ -125,7 +126,7 @@ impl From<&ParsedElement> for SsmlElement {
             ParsedElement::Lang => Self::Lang,
             ParsedElement::Voice => Self::Voice,
             ParsedElement::Emphasis => Self::Emphasis,
-            ParsedElement::Break => Self::Break,
+            ParsedElement::Break(_) => Self::Break,
             ParsedElement::Prosody => Self::Prosody,
             ParsedElement::Audio => Self::Audio,
             ParsedElement::Mark => Self::Mark,
@@ -286,6 +287,22 @@ pub enum Strength {
     ExtraStrong,
 }
 
+impl FromStr for Strength {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "none" => Ok(Self::No),
+            "x-weak" => Ok(Self::ExtraWeak),
+            "weak" => Ok(Self::Weak),
+            "medium" => Ok(Self::Medium),
+            "strong" => Ok(Self::Strong),
+            "x-strong" => Ok(Self::ExtraStrong),
+            e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
 /// The break element is an empty element that controls the pausing or other
 /// prosodic boundaries between tokens. The use of the break element between
 /// any pair of tokens is optional. If the element is not present between
@@ -296,8 +313,8 @@ pub enum Strength {
 ///
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
-#[derive(Copy, Clone, Debug)]
-pub struct Break {
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+pub struct BreakAttributes {
     ///  The strength attribute is an optional attribute having one of the following
     ///  values: "none", "x-weak", "weak", "medium" (default value), "strong", or
     ///  "x-strong". This attribute is used to indicate the strength of the prosodic
@@ -308,10 +325,10 @@ pub struct Break {
     ///  strength between tokens. The stronger boundaries are typically accompanied
     ///  by pauses. "x-weak" and "x-strong" are mnemonics for "extra weak" and
     ///  "extra strong", respectively.
-    strength: Option<Strength>,
+    pub strength: Option<Strength>,
     /// The time attribute is an optional attribute indicating the duration of a
     /// pause to be inserted in the output in seconds or milliseconds. It
     /// follows the time value format from the Cascading Style Sheets Level 2
     /// Recommendation [CSS2], e.g. "250ms",
-    time: Duration,
+    pub time: Option<Duration>,
 }

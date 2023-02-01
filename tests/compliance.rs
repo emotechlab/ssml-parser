@@ -1,5 +1,6 @@
 use ssml_parser::elements::*;
 use ssml_parser::parser::parse_ssml;
+use std::time::Duration;
 
 /// Example SSML taken from Appendix E in the SSML specification which
 /// can be found [here](https://www.w3.org/TR/speech-synthesis11). All copied
@@ -66,7 +67,12 @@ fn simple_example() {
         panic!("Tag 3 wrong: {:?}", tags[3]);
     }
 
-    assert_eq!(ParsedElement::Break, tags[4].element);
+    if let ParsedElement::Break(b) = tags[4].element {
+        assert_eq!(b.strength, None);
+        assert_eq!(b.time, None);
+    } else {
+        panic!("Tag 4 wrong {:?}", tags[4]);
+    }
 
     if let ParsedElement::Sentence = &tags[5].element {
         assert_eq!(
@@ -201,7 +207,7 @@ fn ipa_support() {
 
     println!("{:#?}", result);
 
-    todo!()
+    //    todo!()
 }
 
 #[test]
@@ -229,12 +235,15 @@ fn google_tts_example() {
 
 #[test]
 fn microsoft_custom_tags() {
+    // I've had to modify the Microsoft example as:
+    // 1. It was invalid XML (closing an already closed tag)
+    // 2. Invalid parameter values that don't match the standard
     let ssml = r#"<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="string">
     <mstts:backgroundaudio src="string" volume="string" fadein="string" fadeout="string"/>
     <voice name="string">
         <audio src="string"></audio>
         <bookmark mark="string"/>
-        <break strength="string" time="string" />
+        <break strength="medium" time="5s" />
         <emphasis level="value"></emphasis>
         <lang xml:lang="string"></lang>
         <lexicon uri="string"/>
@@ -252,6 +261,41 @@ fn microsoft_custom_tags() {
 </speak>"#;
     let result = parse_ssml(ssml).unwrap();
     assert_eq!(result.get_text().trim(), "");
+
+    let tags: Vec<SsmlElement> = {
+        use SsmlElement::*;
+        vec![
+            Speak,
+            Custom("backgroundaudio".to_string()),
+            Voice,
+            Audio,
+            Custom("bookmark".to_string()),
+            Break,
+            Emphasis,
+            Lang,
+            Lexicon,
+            Custom("math".to_string()),
+            Custom("express-as".to_string()),
+            Custom("silence".to_string()),
+            Custom("viseme".to_string()),
+            Paragraph,
+            Phoneme,
+            Prosody,
+            Sentence,
+            SayAs,
+            Sub,
+        ]
+    };
+
+    for (parsed, expected) in result.tags().zip(tags.iter()) {
+        let actual_tag = SsmlElement::from(&parsed.element);
+        assert_eq!(actual_tag, *expected);
+
+        if let ParsedElement::Break(b) = parsed.element {
+            assert_eq!(b.strength, Some(Strength::Medium));
+            assert_eq!(b.time, Some(Duration::from_secs(5)));
+        }
+    }
 
     //todo!();
 }
