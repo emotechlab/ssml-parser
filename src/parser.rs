@@ -105,7 +105,6 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                         element,
                     };
                     open_tags.push((ty, tags.len(), new_span));
-                    // We need attributes (for some things), a
                 }
             }
             Event::Comment(_)
@@ -147,7 +146,6 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                     element,
                 };
                 tags.push(span);
-                //panic!("Unexpected event: {:?}", e);
             }
         }
     }
