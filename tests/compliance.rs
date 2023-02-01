@@ -1,5 +1,6 @@
 use ssml_parser::elements::*;
 use ssml_parser::parser::parse_ssml;
+use std::time::Duration;
 
 /// Example SSML taken from Appendix E in the SSML specification which
 /// can be found [here](https://www.w3.org/TR/speech-synthesis11). All copied
@@ -260,6 +261,41 @@ fn microsoft_custom_tags() {
 </speak>"#;
     let result = parse_ssml(ssml).unwrap();
     assert_eq!(result.get_text().trim(), "");
+
+    let tags: Vec<SsmlElement> = {
+        use SsmlElement::*;
+        vec![
+            Speak,
+            Custom("backgroundaudio".to_string()),
+            Voice,
+            Audio,
+            Custom("bookmark".to_string()),
+            Break,
+            Emphasis,
+            Lang,
+            Lexicon,
+            Custom("math".to_string()),
+            Custom("express-as".to_string()),
+            Custom("silence".to_string()),
+            Custom("viseme".to_string()),
+            Paragraph,
+            Phoneme,
+            Prosody,
+            Sentence,
+            SayAs,
+            Sub,
+        ]
+    };
+
+    for (parsed, expected) in result.tags().zip(tags.iter()) {
+        let actual_tag = SsmlElement::from(&parsed.element);
+        assert_eq!(actual_tag, *expected);
+
+        if let ParsedElement::Break(b) = parsed.element {
+            assert_eq!(b.strength, Some(Strength::Medium));
+            assert_eq!(b.time, Some(Duration::from_secs(5)));
+        }
+    }
 
     //todo!();
 }

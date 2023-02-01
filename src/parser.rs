@@ -86,13 +86,13 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                     end: text_buffer.len(),
                     element: parse_speak(e, &reader)?,
                 };
-                open_tags.push((SsmlElement::Speak, span));
+                open_tags.push((SsmlElement::Speak, tags.len(), span));
                 // Okay we have speech top level here.
                 //todo!();
             }
             Event::Start(e) => {
                 if has_started {
-                    if !text_buffer.ends_with(char::is_whitespace)
+                    if !(text_buffer.is_empty() || text_buffer.ends_with(char::is_whitespace))
                         && matches!(e.local_name().as_ref(), b"s" | b"p")
                     {
                         // Need to add in a space as they're using tags instead
@@ -104,7 +104,7 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                         end: text_buffer.len(),
                         element,
                     };
-                    open_tags.push((ty, new_span));
+                    open_tags.push((ty, tags.len(), new_span));
                     // We need attributes (for some things), a
                 }
             }
@@ -131,9 +131,9 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                     // We have a close tag without an open!
                 } else {
                     // Okay time to close and remove tag
-                    let (_, mut span) = open_tags.remove(open_tags.len() - 1);
+                    let (_, pos, mut span) = open_tags.remove(open_tags.len() - 1);
                     span.end = text_buffer.len();
-                    tags.insert(0, span);
+                    tags.insert(pos, span);
                     if ssml_elem == SsmlElement::Speak && open_tags.is_empty() {
                         break;
                     }
@@ -146,7 +146,7 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                     end: text_buffer.len(),
                     element,
                 };
-                tags.insert(0, span);
+                tags.push(span);
                 //panic!("Unexpected event: {:?}", e);
             }
         }
