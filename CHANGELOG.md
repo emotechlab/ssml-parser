@@ -12,3 +12,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added basic parsing of elements with no extracting of attributes for standard elements
 - Extraction of attributes for custom elements
 - Full support for `<break/>` element
+- Full support for `<phoneme>` elements

@@ -163,8 +163,6 @@ fn mixed_language_example() {
         result.get_text().trim(),
         r#"The title of the movie is: "La vita è bella" (Life is beautiful), which is directed by Roberto Benigni."#
     );
-
-    //    todo!()
 }
 
 /// Example SSML taken from Appendix E in the SSML specification which
@@ -205,9 +203,28 @@ fn ipa_support() {
         r#"The title of the movie is: La vita è bella (Life is beautiful), which is directed by Roberto Benigni"#
     );
 
-    println!("{:#?}", result);
+    let phonemes = vec![
+        (Some(PhonemeAlphabet::Ipa), "ˈlɑ ˈviːɾə ˈʔeɪ ˈbɛlə"),
+        (Some(PhonemeAlphabet::Ipa), "ɹəˈbɛːɹɾoʊ bɛˈniːnji"),
+    ];
 
-    //    todo!()
+    let mut index = 0;
+
+    let tags: Vec<SsmlElement> = {
+        use SsmlElement::*;
+        vec![Speak, Phoneme, Phoneme]
+    };
+
+    for (parsed, expected) in result.tags().zip(tags.iter()) {
+        let actual_tag = SsmlElement::from(&parsed.element);
+        assert_eq!(actual_tag, *expected);
+
+        if let ParsedElement::Phoneme(p) = &parsed.element {
+            assert_eq!(p.alphabet, phonemes[index].0);
+            assert_eq!(p.ph, phonemes[index].1);
+            index += 1;
+        }
+    }
 }
 
 #[test]
@@ -294,8 +311,12 @@ fn microsoft_custom_tags() {
         if let ParsedElement::Break(b) = parsed.element {
             assert_eq!(b.strength, Some(Strength::Medium));
             assert_eq!(b.time, Some(Duration::from_secs(5)));
+        } else if let ParsedElement::Phoneme(p) = &parsed.element {
+            assert_eq!(
+                p.alphabet.as_ref().unwrap(),
+                &PhonemeAlphabet::Other("string".to_string())
+            );
+            assert_eq!(p.ph, "string");
         }
     }
-
-    //todo!();
 }

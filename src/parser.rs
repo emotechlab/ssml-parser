@@ -175,7 +175,7 @@ fn parse_element<R: io::BufRead>(
         SsmlElement::Token => ParsedElement::Token,
         SsmlElement::Word => ParsedElement::Word,
         SsmlElement::SayAs => ParsedElement::SayAs,
-        SsmlElement::Phoneme => ParsedElement::Phoneme,
+        SsmlElement::Phoneme => parse_phoneme(elem, reader)?,
         SsmlElement::Sub => ParsedElement::Sub,
         SsmlElement::Lang => ParsedElement::Lang,
         SsmlElement::Voice => ParsedElement::Voice,
@@ -226,6 +226,29 @@ fn parse_speak<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
         lang,
         base,
         on_lang_failure,
+    }))
+}
+
+fn parse_phoneme<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let phoneme = elem.try_get_attribute("ph")?;
+    let phoneme = if let Some(phoneme) = phoneme {
+        let value = phoneme.decode_and_unescape_value(reader)?;
+        value.to_string()
+    } else {
+        bail!("ph attribute is required with a phoneme element");
+    };
+
+    let alphabet = elem.try_get_attribute("alphabet")?;
+    let alphabet = if let Some(alpha) = alphabet {
+        let val = alpha.decode_and_unescape_value(reader)?;
+        Some(PhonemeAlphabet::from_str(&val).unwrap())
+    } else {
+        None
+    };
+
+    Ok(ParsedElement::Phoneme(PhonemeAttributes {
+        ph: phoneme,
+        alphabet,
     }))
 }
 

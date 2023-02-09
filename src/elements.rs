@@ -95,7 +95,7 @@ pub enum ParsedElement {
     Token,
     Word,
     SayAs,
-    Phoneme,
+    Phoneme(PhonemeAttributes),
     Sub,
     Lang,
     Voice,
@@ -121,7 +121,7 @@ impl From<&ParsedElement> for SsmlElement {
             ParsedElement::Token => Self::Token,
             ParsedElement::Word => Self::Word,
             ParsedElement::SayAs => Self::SayAs,
-            ParsedElement::Phoneme => Self::Phoneme,
+            ParsedElement::Phoneme(_) => Self::Phoneme,
             ParsedElement::Sub => Self::Sub,
             ParsedElement::Lang => Self::Lang,
             ParsedElement::Voice => Self::Voice,
@@ -227,9 +227,21 @@ impl FromStr for SsmlElement {
 
 // Custom
 
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum PhonemeAlphabet {
     Ipa,
     Other(String),
+}
+
+impl FromStr for PhonemeAlphabet {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "ipa" => Ok(Self::Ipa),
+            e => Ok(Self::Other(e.to_string())),
+        }
+    }
 }
 
 /// The phoneme element provides a phonemic/phonetic pronunciation for the
@@ -240,10 +252,11 @@ pub enum PhonemeAlphabet {
 ///
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
-pub struct Phoneme {
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct PhonemeAttributes {
     /// The ph attribute is a required attribute that specifies the phoneme/phone
     /// string.
-    ph: String,
+    pub ph: String,
     /// The alphabet attribute is an optional attribute that specifies the
     /// phonemic/phonetic pronunciation alphabet. A pronunciation alphabet
     /// in this context refers to a collection of symbols to represent the
@@ -255,7 +268,7 @@ pub struct Phoneme {
     /// Information Technology Industries Association (JEITA) might wish to
     /// encourage the use of an alphabet such as "x-JEITA" or "x-JEITA-IT-4002"
     /// for their phoneme alphabet (JEIDAALPHABET).
-    alphabet: Option<PhonemeAlphabet>,
+    pub alphabet: Option<PhonemeAlphabet>,
 }
 
 ///  The strength attribute is an optional attribute having one of the following
