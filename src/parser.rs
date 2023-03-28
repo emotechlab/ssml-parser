@@ -82,8 +82,8 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                 }
                 has_started = true;
                 let span = Span {
-                    start: text_buffer.len(),
-                    end: text_buffer.len(),
+                    start: text_buffer.chars().count(),
+                    end: text_buffer.chars().count(),
                     element: parse_speak(e, &reader)?,
                 };
                 open_tags.push((SsmlElement::Speak, tags.len(), span));
@@ -100,8 +100,8 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                     }
                     let (ty, element) = parse_element(e, &reader)?;
                     let new_span = Span {
-                        start: text_buffer.len(),
-                        end: text_buffer.len(),
+                        start: text_buffer.chars().count(),
+                        end: text_buffer.chars().count(),
                         element,
                     };
                     open_tags.push((ty, tags.len(), new_span));
@@ -131,7 +131,7 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                 } else {
                     // Okay time to close and remove tag
                     let (_, pos, mut span) = open_tags.remove(open_tags.len() - 1);
-                    span.end = text_buffer.len();
+                    span.end = text_buffer.chars().count();
                     tags.insert(pos, span);
                     if ssml_elem == SsmlElement::Speak && open_tags.is_empty() {
                         break;
@@ -141,8 +141,8 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
             Event::Empty(e) => {
                 let (ty, element) = parse_element(e, &reader)?;
                 let span = Span {
-                    start: text_buffer.len(),
-                    end: text_buffer.len(),
+                    start: text_buffer.chars().count(),
+                    end: text_buffer.chars().count(),
                     element,
                 };
                 tags.push(span);
@@ -339,5 +339,17 @@ mod tests {
         assert!(a < c);
         assert!(a < d);
         assert!(a == a);
+    }
+
+    #[test]
+    fn char_position_not_byte() {
+        let unicode = parse_ssml("<speak>Let’s review a complex structure. Please note how threshold of control is calculated in this example.</speak>").unwrap();
+        let ascii = parse_ssml("<speak>Let's review a complex structure. Please note how threshold of control is calculated in this example.</speak>").unwrap();
+
+        let master_span_unicode = unicode.tags().next().unwrap();
+        let master_span_ascii = ascii.tags().next().unwrap();
+
+        assert_eq!(master_span_ascii.end, master_span_unicode.end);
+        assert_eq!(master_span_ascii.end, ascii.get_text().chars().count());
     }
 }
