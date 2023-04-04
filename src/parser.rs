@@ -10,12 +10,14 @@ use std::str::from_utf8;
 use std::str::FromStr;
 use std::time::Duration;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Span {
     pub start: usize,
     pub end: usize,
     pub element: ParsedElement,
 }
+
+impl Eq for Span {}
 
 impl Ord for Span {
     fn cmp(&self, other: &Self) -> Ordering {
@@ -179,9 +181,9 @@ fn parse_element<R: io::BufRead>(
         SsmlElement::Sub => ParsedElement::Sub,
         SsmlElement::Lang => ParsedElement::Lang,
         SsmlElement::Voice => ParsedElement::Voice,
-        SsmlElement::Emphasis => ParsedElement::Emphasis,
+        SsmlElement::Emphasis => parse_emphasis(elem, reader)?,
         SsmlElement::Break => parse_break(elem, reader)?,
-        SsmlElement::Prosody => ParsedElement::Prosody,
+        SsmlElement::Prosody => parse_prosody(elem, reader)?,
         SsmlElement::Audio => ParsedElement::Audio,
         SsmlElement::Mark => ParsedElement::Mark,
         SsmlElement::Description => ParsedElement::Description,
@@ -271,6 +273,98 @@ fn parse_break<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
     };
 
     Ok(ParsedElement::Break(BreakAttributes { strength, time }))
+}
+
+fn parse_emphasis<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let level = elem.try_get_attribute("level")?;
+    let level = if let Some(level) = level {
+        let value = level.decode_and_unescape_value(reader)?;
+        let value = EmphasisLevel::from_str(&value)?;
+        Some(value)
+    } else {
+        None
+    };
+
+    Ok(ParsedElement::Emphasis(EmphasisAttributes { level }))
+}
+
+fn parse_prosody<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let pitch = elem.try_get_attribute("pitch")?;
+    let pitch = if let Some(pitch) = pitch {
+        let value = pitch.decode_and_unescape_value(reader)?;
+        let value = match PitchRange::from_str(&value) {
+            Ok(result) => result,
+            Err(e) => bail!("Error: {}", e),
+        };
+
+        Some(value)
+    } else {
+        None
+    };
+    let contour = elem.try_get_attribute("contour")?;
+    let contour = if let Some(contour) = contour {
+        let value = contour.decode_and_unescape_value(reader)?;
+        let value = match PitchContour::from_str(&value) {
+            Ok(result) => result,
+            Err(e) => bail!("Error: {}", e),
+        };
+        Some(value)
+    } else {
+        None
+    };
+    let range = elem.try_get_attribute("range")?;
+    let range = if let Some(range) = range {
+        let value = range.decode_and_unescape_value(reader)?;
+        let value = match PitchRange::from_str(&value) {
+            Ok(result) => result,
+            Err(e) => bail!("Error: {}", e),
+        };
+
+        Some(value)
+    } else {
+        None
+    };
+    let rate = elem.try_get_attribute("rate")?;
+    let rate = if let Some(rate) = rate {
+        let value = rate.decode_and_unescape_value(reader)?;
+        let value = match RateRange::from_str(&value) {
+            Ok(result) => result,
+            Err(e) => bail!("Error: {}", e),
+        };
+
+        Some(value)
+    } else {
+        None
+    };
+    let duration = elem.try_get_attribute("duration")?;
+    let duration = if let Some(duration) = duration {
+        let value = duration.decode_and_unescape_value(reader)?;
+        let duration = parse_duration(&value)?;
+        Some(duration)
+    } else {
+        None
+    };
+    let volume = elem.try_get_attribute("volume")?;
+    let volume = if let Some(volume) = volume {
+        let value = volume.decode_and_unescape_value(reader)?;
+        let value = match VolumeRange::from_str(&value) {
+            Ok(result) => result,
+            Err(e) => bail!("Error: {}", e),
+        };
+
+        Some(value)
+    } else {
+        None
+    };
+
+    Ok(ParsedElement::Prosody(ProsodyAttributes {
+        pitch,
+        contour,
+        range,
+        rate,
+        duration,
+        volume,
+    }))
 }
 
 fn parse_paragraph<R: io::BufRead>(reader: &mut Reader<R>) -> Result<()> {

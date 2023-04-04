@@ -22,7 +22,7 @@ fn simple_example() {
             <s>The first is from Stephanie Williams and arrived at <break/> 3:45pm.
             </s>
             <s>
-              The subject is <prosody rate="-20%">ski trip</prosody>
+              The subject is <prosody rate="20%">ski trip</prosody>
             </s>
           </p>
         </speak>"#;
@@ -83,8 +83,16 @@ fn simple_example() {
         panic!("Tag 5 wrong: {:?}", tags[5]);
     }
 
-    if let ParsedElement::Prosody = &tags[6].element {
-        assert_eq!(result.get_text_from_span(&tags[6]).trim(), "ski trip");
+    if let ParsedElement::Prosody(p) = &tags[6].element {
+        assert_eq!(p.pitch, None);
+        assert_eq!(p.contour, None);
+        assert_eq!(p.range, None);
+        assert_eq!(
+            p.rate,
+            Some(RateRange::Percentage(PositiveNumber::RoundNumber(20)))
+        );
+        assert_eq!(p.duration, None);
+        assert_eq!(p.volume, None);
     } else {
         panic!("Tag 6 wrong: {:?}", tags[6]);
     }
@@ -261,7 +269,7 @@ fn microsoft_custom_tags() {
         <audio src="string"></audio>
         <bookmark mark="string"/>
         <break strength="medium" time="5s" />
-        <emphasis level="value"></emphasis>
+        <emphasis level="reduced"></emphasis>
         <lang xml:lang="string"></lang>
         <lexicon uri="string"/>
         <math xmlns="http://www.w3.org/1998/Math/MathML"></math>
@@ -270,7 +278,247 @@ fn microsoft_custom_tags() {
         <mstts:viseme type="string"/>
         <p></p>
         <phoneme alphabet="string" ph="string"></phoneme>
-        <prosody pitch="value" contour="value" range="value" rate="value" volume="value"></prosody>
+        <prosody pitch="-highHz" contour="value" range="value" rate="value" volume="value"></prosody>
+        <s></s>
+        <say-as interpret-as="string" format="string" detail="string"></say-as>
+        <sub alias="string"></sub>
+    </voice>
+</speak>"#;
+    let result = parse_ssml(ssml);
+    assert!(result.is_err());
+
+    let ssml = r#"<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="string">
+    <mstts:backgroundaudio src="string" volume="string" fadein="string" fadeout="string"/>
+    <voice name="string">
+        <audio src="string"></audio>
+        <bookmark mark="string"/>
+        <break strength="medium" time="5s" />
+        <emphasis level="reduced"></emphasis>
+        <lang xml:lang="string"></lang>
+        <lexicon uri="string"/>
+        <math xmlns="http://www.w3.org/1998/Math/MathML"></math>
+        <mstts:express-as style="string" styledegree="value" role="string"></mstts:express-as>
+        <mstts:silence type="string" value="string"/>
+        <mstts:viseme type="string"/>
+        <p></p>
+        <phoneme alphabet="string" ph="string"></phoneme>
+        <prosody pitch="2Hz" contour="(0%,+20Hz) (10%,+30Hz) (40%,+10Hz)" range="-2Hz" rate="20%" volume="2dB"></prosody>
+        <s></s>
+        <say-as interpret-as="string" format="string" detail="string"></say-as>
+        <sub alias="string"></sub>
+    </voice>
+</speak>"#;
+    let result = parse_ssml(ssml).unwrap();
+    assert_eq!(result.get_text().trim(), "");
+
+    let ssml = r#"<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="string">
+    <mstts:backgroundaudio src="string" volume="string" fadein="string" fadeout="string"/>
+    <voice name="string">
+        <audio src="string"></audio>
+        <bookmark mark="string"/>
+        <break strength="medium" time="5s" />
+        <emphasis level="reduced"></emphasis>
+        <lang xml:lang="string"></lang>
+        <lexicon uri="string"/>
+        <math xmlns="http://www.w3.org/1998/Math/MathML"></math>
+        <mstts:express-as style="string" styledegree="value" role="string"></mstts:express-as>
+        <mstts:silence type="string" value="string"/>
+        <mstts:viseme type="string"/>
+        <p></p>
+        <phoneme alphabet="string" ph="string"></phoneme>
+        <prosody rate="105%" pitch="+19%"></prosody>
+        <s></s>
+        <say-as interpret-as="string" format="string" detail="string"></say-as>
+        <sub alias="string"></sub>
+    </voice>
+</speak>"#;
+    let result = parse_ssml(ssml).unwrap();
+    assert_eq!(result.get_text().trim(), "");
+
+    let ssml = r#"<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="string">
+    <mstts:backgroundaudio src="string" volume="string" fadein="string" fadeout="string"/>
+    <voice name="string">
+        <audio src="string"></audio>
+        <bookmark mark="string"/>
+        <break strength="medium" time="5s" />
+        <emphasis level="reduced"></emphasis>
+        <lang xml:lang="string"></lang>
+        <lexicon uri="string"/>
+        <math xmlns="http://www.w3.org/1998/Math/MathML"></math>
+        <mstts:express-as style="string" styledegree="value" role="string"></mstts:express-as>
+        <mstts:silence type="string" value="string"/>
+        <mstts:viseme type="string"/>
+        <p></p>
+        <phoneme alphabet="string" ph="string"></phoneme>
+        <prosody pitch="-10%" rate="105%" pitch="+19%"></prosody>
+        <s></s>
+        <say-as interpret-as="string" format="string" detail="string"></say-as>
+        <sub alias="string"></sub>
+    </voice>
+</speak>"#;
+    let result = parse_ssml(ssml).unwrap();
+    assert_eq!(result.get_text().trim(), "");
+
+    let ssml = r#"<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="string">
+    <mstts:backgroundaudio src="string" volume="string" fadein="string" fadeout="string"/>
+    <voice name="string">
+        <audio src="string"></audio>
+        <bookmark mark="string"/>
+        <break strength="medium" time="5s" />
+        <emphasis level="reduced"></emphasis>
+        <lang xml:lang="string"></lang>
+        <lexicon uri="string"/>
+        <math xmlns="http://www.w3.org/1998/Math/MathML"></math>
+        <mstts:express-as style="string" styledegree="value" role="string"></mstts:express-as>
+        <mstts:silence type="string" value="string"/>
+        <mstts:viseme type="string"/>
+        <p></p>
+        <phoneme alphabet="string" ph="string"></phoneme>
+        <prosody pitch="10%" rate="105%" pitch="+19%"></prosody>
+        <s></s>
+        <say-as interpret-as="string" format="string" detail="string"></say-as>
+        <sub alias="string"></sub>
+    </voice>
+</speak>"#;
+    let result = parse_ssml(ssml).unwrap();
+    assert_eq!(result.get_text().trim(), "");
+
+    let ssml = r#"<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="string">
+    <mstts:backgroundaudio src="string" volume="string" fadein="string" fadeout="string"/>
+    <voice name="string">
+        <audio src="string"></audio>
+        <bookmark mark="string"/>
+        <break strength="medium" time="5s" />
+        <emphasis level="reduced"></emphasis>
+        <lang xml:lang="string"></lang>
+        <lexicon uri="string"/>
+        <math xmlns="http://www.w3.org/1998/Math/MathML"></math>
+        <mstts:express-as style="string" styledegree="value" role="string"></mstts:express-as>
+        <mstts:silence type="string" value="string"/>
+        <mstts:viseme type="string"/>
+        <p></p>
+        <phoneme alphabet="string" ph="string"></phoneme>
+        <prosody pitch="+10%" rate="105%" pitch="+19%"></prosody>
+        <s></s>
+        <say-as interpret-as="string" format="string" detail="string"></say-as>
+        <sub alias="string"></sub>
+    </voice>
+</speak>"#;
+    let result = parse_ssml(ssml).unwrap();
+    assert_eq!(result.get_text().trim(), "");
+
+    let ssml = r#"<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="string">
+    <mstts:backgroundaudio src="string" volume="string" fadein="string" fadeout="string"/>
+    <voice name="string">
+        <audio src="string"></audio>
+        <bookmark mark="string"/>
+        <break strength="medium" time="5s" />
+        <emphasis level="reduced"></emphasis>
+        <lang xml:lang="string"></lang>
+        <lexicon uri="string"/>
+        <math xmlns="http://www.w3.org/1998/Math/MathML"></math>
+        <mstts:express-as style="string" styledegree="value" role="string"></mstts:express-as>
+        <mstts:silence type="string" value="string"/>
+        <mstts:viseme type="string"/>
+        <p></p>
+        <phoneme alphabet="string" ph="string"></phoneme>
+        <prosody rate="105%" pitch="+19.3%"></prosody>
+        <s></s>
+        <say-as interpret-as="string" format="string" detail="string"></say-as>
+        <sub alias="string"></sub>
+    </voice>
+</speak>"#;
+    let result = parse_ssml(ssml).unwrap();
+    assert_eq!(result.get_text().trim(), "");
+
+    let ssml = r#"<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="string">
+    <mstts:backgroundaudio src="string" volume="string" fadein="string" fadeout="string"/>
+    <voice name="string">
+        <audio src="string"></audio>
+        <bookmark mark="string"/>
+        <break strength="medium" time="5s" />
+        <emphasis level="reduced"></emphasis>
+        <lang xml:lang="string"></lang>
+        <lexicon uri="string"/>
+        <math xmlns="http://www.w3.org/1998/Math/MathML"></math>
+        <mstts:express-as style="string" styledegree="value" role="string"></mstts:express-as>
+        <mstts:silence type="string" value="string"/>
+        <mstts:viseme type="string"/>
+        <p></p>
+        <phoneme alphabet="string" ph="string"></phoneme>
+        <prosody pitch="-0.5st"></prosody>
+        <s></s>
+        <say-as interpret-as="string" format="string" detail="string"></say-as>
+        <sub alias="string"></sub>
+    </voice>
+</speak>"#;
+    let result = parse_ssml(ssml).unwrap();
+    assert_eq!(result.get_text().trim(), "");
+
+    let ssml = r#"<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="string">
+    <mstts:backgroundaudio src="string" volume="string" fadein="string" fadeout="string"/>
+    <voice name="string">
+        <audio src="string"></audio>
+        <bookmark mark="string"/>
+        <break strength="medium" time="5s" />
+        <emphasis level="reduced"></emphasis>
+        <lang xml:lang="string"></lang>
+        <lexicon uri="string"/>
+        <math xmlns="http://www.w3.org/1998/Math/MathML"></math>
+        <mstts:express-as style="string" styledegree="value" role="string"></mstts:express-as>
+        <mstts:silence type="string" value="string"/>
+        <mstts:viseme type="string"/>
+        <p></p>
+        <phoneme alphabet="string" ph="string"></phoneme>
+        <prosody pitch="+35.7Hz"></prosody>
+        <s></s>
+        <say-as interpret-as="string" format="string" detail="string"></say-as>
+        <sub alias="string"></sub>
+    </voice>
+</speak>"#;
+    let result = parse_ssml(ssml).unwrap();
+    assert_eq!(result.get_text().trim(), "");
+
+    let ssml = r#"<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="string">
+    <mstts:backgroundaudio src="string" volume="string" fadein="string" fadeout="string"/>
+    <voice name="string">
+        <audio src="string"></audio>
+        <bookmark mark="string"/>
+        <break strength="medium" time="5s" />
+        <emphasis level="reduced"></emphasis>
+        <lang xml:lang="string"></lang>
+        <lexicon uri="string"/>
+        <math xmlns="http://www.w3.org/1998/Math/MathML"></math>
+        <mstts:express-as style="string" styledegree="value" role="string"></mstts:express-as>
+        <mstts:silence type="string" value="string"/>
+        <mstts:viseme type="string"/>
+        <p></p>
+        <phoneme alphabet="string" ph="string"></phoneme>
+        <prosody pitch="2.2Hz" contour="(0%,+20Hz) (10%,+30Hz) (40%,+10Hz)" range="-2Hz" rate="-20%" volume="2dB"></prosody>
+        <s></s>
+        <say-as interpret-as="string" format="string" detail="string"></say-as>
+        <sub alias="string"></sub>
+    </voice>
+</speak>"#;
+    let result = parse_ssml(ssml);
+    assert!(result.is_err());
+
+    let ssml = r#"<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="string">
+    <mstts:backgroundaudio src="string" volume="string" fadein="string" fadeout="string"/>
+    <voice name="string">
+        <audio src="string"></audio>
+        <bookmark mark="string"/>
+        <break strength="medium" time="5s" />
+        <emphasis level="reduced"></emphasis>
+        <lang xml:lang="string"></lang>
+        <lexicon uri="string"/>
+        <math xmlns="http://www.w3.org/1998/Math/MathML"></math>
+        <mstts:express-as style="string" styledegree="value" role="string"></mstts:express-as>
+        <mstts:silence type="string" value="string"/>
+        <mstts:viseme type="string"/>
+        <p></p>
+        <phoneme alphabet="string" ph="string"></phoneme>
+        <prosody pitch="2.2Hz" contour="(0%,+20Hz) (10%,+30Hz) (40%,+10Hz)" range="-2Hz" rate="20%" volume="2dB"></prosody>
         <s></s>
         <say-as interpret-as="string" format="string" detail="string"></say-as>
         <sub alias="string"></sub>

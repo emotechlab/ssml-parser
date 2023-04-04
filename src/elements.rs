@@ -83,7 +83,7 @@ pub enum SsmlElement {
     Custom(String),
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ParsedElement {
     Speak(SpeakAttributes),
     Lexicon,
@@ -99,9 +99,9 @@ pub enum ParsedElement {
     Sub,
     Lang,
     Voice,
-    Emphasis,
+    Emphasis(EmphasisAttributes),
     Break(BreakAttributes),
-    Prosody,
+    Prosody(ProsodyAttributes),
     Audio,
     Mark,
     Description,
@@ -125,9 +125,9 @@ impl From<&ParsedElement> for SsmlElement {
             ParsedElement::Sub => Self::Sub,
             ParsedElement::Lang => Self::Lang,
             ParsedElement::Voice => Self::Voice,
-            ParsedElement::Emphasis => Self::Emphasis,
+            ParsedElement::Emphasis(_) => Self::Emphasis,
             ParsedElement::Break(_) => Self::Break,
-            ParsedElement::Prosody => Self::Prosody,
+            ParsedElement::Prosody(_) => Self::Prosody,
             ParsedElement::Audio => Self::Audio,
             ParsedElement::Mark => Self::Mark,
             ParsedElement::Description => Self::Description,
@@ -316,6 +316,432 @@ impl FromStr for Strength {
     }
 }
 
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum PitchStrength {
+    /// Extra low (x-low)
+    XLow,
+    /// Low
+    Low,
+    /// Medium
+    Medium,
+    /// High
+    High,
+    /// Extra high (x-high)
+    XHigh,
+    /// Default
+    Default,
+}
+
+impl FromStr for PitchStrength {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "x-low" => Ok(Self::XLow),
+            "low" => Ok(Self::Low),
+            "medium" => Ok(Self::Medium),
+            "high" => Ok(Self::High),
+            "x-high" => Ok(Self::XHigh),
+            "default" => Ok(Self::Default),
+            e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum VolumeStrength {
+    /// Silent
+    Silent,
+    /// X-soft
+    XSoft,
+    /// Soft
+    Soft,
+    /// Medium
+    Medium,
+    /// Loud
+    Loud,
+    /// X-loud
+    XLoud,
+    /// Default
+    Default,
+}
+
+impl FromStr for VolumeStrength {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "silent" => Ok(Self::Silent),
+            "x-soft" => Ok(Self::XSoft),
+            "soft" => Ok(Self::Soft),
+            "medium" => Ok(Self::Medium),
+            "loud" => Ok(Self::Loud),
+            "x-loud" => Ok(Self::XLoud),
+            "default" => Ok(Self::Default),
+            e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum RateStrength {
+    /// X-slow
+    XSlow,
+    /// Slow
+    Slow,
+    /// Medium
+    Medium,
+    /// Fast
+    Fast,
+    /// X-fast
+    XFast,
+    /// Default
+    Default,
+}
+
+impl FromStr for RateStrength {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "x-slow" => Ok(Self::XSlow),
+            "slow" => Ok(Self::Slow),
+            "medium" => Ok(Self::Medium),
+            "fast" => Ok(Self::Fast),
+            "x-fast" => Ok(Self::XFast),
+            "default" => Ok(Self::Default),
+            e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+pub enum PitchRange {
+    Strength(PitchStrength), // low, medium high etc
+    Frequency((f32, Unit)),
+    RelativeChange((f32, Unit)),
+}
+
+impl FromStr for PitchRange {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "x-low" => Ok(Self::Strength(PitchStrength::XLow)),
+            "low" => Ok(Self::Strength(PitchStrength::Low)),
+            "medium" => Ok(Self::Strength(PitchStrength::Medium)),
+            "high" => Ok(Self::Strength(PitchStrength::High)),
+            "x-high" => Ok(Self::Strength(PitchStrength::XHigh)),
+            "default" => Ok(Self::Strength(PitchStrength::Default)),
+            value if value.ends_with("Hz") || value.ends_with("%") || value.ends_with("st") => {
+                if value.ends_with("Hz") {
+                    if value.starts_with("+") || value.starts_with("-") {
+                        if value.starts_with("-") {
+                            Ok(Self::RelativeChange((
+                                value.strip_suffix("Hz").unwrap().parse::<f32>()?,
+                                Unit::Hz,
+                            )))
+                        } else {
+                            Ok(Self::RelativeChange((
+                                value.strip_suffix("Hz").unwrap().parse()?,
+                                Unit::Hz,
+                            )))
+                        }
+                    } else {
+                        Ok(Self::Frequency((
+                            value.strip_suffix("Hz").unwrap().parse()?,
+                            Unit::Hz,
+                        )))
+                    }
+                } else if value.ends_with("%") {
+                    if value.starts_with("+") || value.starts_with("-") {
+                        if value.starts_with("-") {
+                            Ok(Self::RelativeChange((
+                                value.strip_suffix("%").unwrap().parse::<f32>()?,
+                                Unit::Percentage,
+                            )))
+                        } else {
+                            Ok(Self::RelativeChange((
+                                value.strip_suffix("%").unwrap().parse()?,
+                                Unit::Percentage,
+                            )))
+                        }
+                    } else {
+                        Ok(Self::RelativeChange((
+                            value.strip_suffix("%").unwrap().parse()?,
+                            Unit::Percentage,
+                        )))
+                    }
+                } else if value.ends_with("st") {
+                    if value.starts_with("+") || value.starts_with("-") {
+                        if value.starts_with("-") {
+                            Ok(Self::RelativeChange((
+                                value.strip_suffix("st").unwrap().parse::<f32>()?,
+                                Unit::St,
+                            )))
+                        } else {
+                            Ok(Self::RelativeChange((
+                                value.strip_suffix("st").unwrap().parse()?,
+                                Unit::St,
+                            )))
+                        }
+                    } else {
+                        Ok(Self::RelativeChange((
+                            value.strip_suffix("st").unwrap().parse()?,
+                            Unit::St,
+                        )))
+                    }
+                } else {
+                    bail!("Unrecognised value {}", "Pitch value unrecognised");
+                }
+            }
+            e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+pub enum VolumeRange {
+    Strength(VolumeStrength), // "silent", "x-soft", "soft", "medium", "loud", "x-loud", default
+    Decibel(f32),
+}
+
+impl FromStr for VolumeRange {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "silent" => Ok(Self::Strength(VolumeStrength::Silent)),
+            "x-soft" => Ok(Self::Strength(VolumeStrength::XSoft)),
+            "soft" => Ok(Self::Strength(VolumeStrength::Soft)),
+            "medium" => Ok(Self::Strength(VolumeStrength::Medium)),
+            "loud" => Ok(Self::Strength(VolumeStrength::Loud)),
+            "x-loud" => Ok(Self::Strength(VolumeStrength::XLoud)),
+            "default" => Ok(Self::Strength(VolumeStrength::Default)),
+            value if value.ends_with("dB") => {
+                if value.starts_with("+") || value.starts_with("-") {
+                    if value.starts_with("-") {
+                        Ok(Self::Decibel(
+                            value.strip_suffix("dB").unwrap().parse::<f32>()? * -1.0,
+                        ))
+                    } else {
+                        Ok(Self::Decibel(
+                            value.strip_suffix("dB").unwrap().parse::<f32>()?,
+                        ))
+                    }
+                } else {
+                    Ok(Self::Decibel(
+                        value.strip_suffix("dB").unwrap().parse::<f32>()?,
+                    ))
+                }
+            }
+            e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+pub enum RateRange {
+    Strength(RateStrength), // "x-slow", "slow", "medium", "fast", "x-fast", or "default"
+    Percentage(PositiveNumber),
+}
+
+impl FromStr for RateRange {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "x-slow" => Ok(Self::Strength(RateStrength::XSlow)),
+            "slow" => Ok(Self::Strength(RateStrength::Slow)),
+            "medium" => Ok(Self::Strength(RateStrength::Medium)),
+            "fast" => Ok(Self::Strength(RateStrength::Fast)),
+            "x-fast" => Ok(Self::Strength(RateStrength::XFast)),
+            "default" => Ok(Self::Strength(RateStrength::Default)),
+            value if value.ends_with("%") => {
+                if value.starts_with("+") || value.starts_with("-") {
+                    if value.starts_with("+") {
+                        Ok(Self::Percentage(
+                            value.strip_suffix("%").unwrap().parse::<PositiveNumber>()?,
+                        ))
+                    } else {
+                        bail!(
+                            "Unrecognised value {}",
+                            "Negative percentage not allowed for rate"
+                        );
+                    }
+                } else {
+                    Ok(Self::Percentage(
+                        value.strip_suffix("%").unwrap().parse::<PositiveNumber>()?,
+                    ))
+                }
+            }
+            e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+pub enum ContourElement {
+    Element((f32, PitchRange)),
+}
+
+impl FromStr for ContourElement {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            value if value.starts_with("(") && value.ends_with(")") => {
+                let value = value.strip_suffix(")").unwrap().to_string();
+                let value = value.strip_prefix("(").unwrap().to_string();
+                let elements = value.split(",").collect::<Vec<_>>();
+                let mut percentage = 0.0;
+                if elements[0].ends_with("%") {
+                    percentage = elements[0].strip_suffix("%").unwrap().parse::<f32>()?;
+                } else {
+                    bail!(
+                        "Unrecognised value {}",
+                        "Invalid percentage in pitch contour"
+                    );
+                }
+                let pitch = match PitchRange::from_str(&elements[1]) {
+                    Ok(result) => result,
+                    Err(e) => bail!("Error: {}", e),
+                };
+
+                Ok(Self::Element((percentage, pitch)))
+            }
+            e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
+pub enum PitchContour {
+    Elements(Vec<ContourElement>),
+}
+
+impl FromStr for PitchContour {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut pitchContourElements = Vec::new();
+        match s {
+            value if value.starts_with("(") => {
+                let elements = value.split(" ").collect::<Vec<_>>();
+
+                for element in elements {
+                    let pitchcontourelement = ContourElement::from_str(&element)?;
+                    pitchContourElements.push(pitchcontourelement);
+                }
+
+                Ok(Self::Elements(pitchContourElements))
+            }
+            e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+pub enum PositiveNumber {
+    FloatNumber(f32),
+    RoundNumber(isize),
+}
+
+impl FromStr for PositiveNumber {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            value
+                if value.starts_with("+")
+                    || value.starts_with("-")
+                    || value.parse::<f32>().is_ok() =>
+            {
+                if value.starts_with("+") {
+                    if value.contains(".") {
+                        Ok(Self::FloatNumber(
+                            value.strip_prefix("+").unwrap().parse::<f32>()?,
+                        ))
+                    } else {
+                        Ok(Self::RoundNumber(
+                            value.strip_prefix("+").unwrap().parse::<isize>()?,
+                        ))
+                    }
+                } else {
+                    if value.starts_with("-") {
+                        bail!("Unrecognised value {}", "Negative number not allowed");
+                    } else {
+                        if value.contains(".") {
+                            Ok(Self::FloatNumber(value.parse::<f32>()?))
+                        } else {
+                            Ok(Self::RoundNumber(value.parse::<isize>()?))
+                        }
+                    }
+                }
+            }
+            e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum Unit {
+    /// Strong
+    Hz,
+    /// Moderate (default)
+    St,
+    /// None
+    Percentage,
+}
+
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum EmphasisLevel {
+    /// Strong
+    Strong,
+    /// Moderate (default)
+    Moderate,
+    /// None
+    None,
+    /// Reduced
+    Reduced,
+}
+
+impl FromStr for EmphasisLevel {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "strong" => Ok(Self::Strong),
+            "moderate" => Ok(Self::Moderate),
+            "none" => Ok(Self::None),
+            "reduced" => Ok(Self::Reduced),
+            e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
 /// The break element is an empty element that controls the pausing or other
 /// prosodic boundaries between tokens. The use of the break element between
 /// any pair of tokens is optional. If the element is not present between
@@ -344,4 +770,70 @@ pub struct BreakAttributes {
     /// follows the time value format from the Cascading Style Sheets Level 2
     /// Recommendation [CSS2], e.g. "250ms",
     pub time: Option<Duration>,
+}
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
+pub struct ProsodyAttributes {
+    /// pitch: the baseline pitch for the contained text. Although the exact meaning of "baseline pitch"
+    /// will vary across synthesis processors, increasing/decreasing this value will typically increase/decrease
+    /// the approximate pitch of the output. Legal values are: a number followed by "Hz", a relative change
+    /// or "x-low", "low", "medium", "high", "x-high", or "default". Labels "x-low" through "x-high" represent
+    /// a sequence of monotonically non-decreasing pitch levels.
+    pub pitch: Option<PitchRange>,
+    /// The pitch contour is defined as a set of white space-separated targets at specified
+    /// time positions in the speech output. The algorithm for interpolating between the targets
+    /// is processor-specific. In each pair of the form (time position,target), the first value
+    /// is a percentage of the period of the contained text (a number followed by "%") and
+    /// the second value is the value of the pitch attribute (a number followed by "Hz", a relative
+    /// change, or a label value). Time position values outside 0% to 100% are ignored.
+    /// If a pitch value is not defined for 0% or 100% then the nearest pitch target is copied.
+    /// All relative values for the pitch are relative to the pitch value just before the contained text.
+    pub contour: Option<PitchContour>,
+    /// the pitch range (variability) for the contained text. Although the exact meaning of
+    /// "pitch range" will vary across synthesis processors, increasing/decreasing this value
+    /// will typically increase/decrease the dynamic range of the output pitch. Legal values
+    /// are: a number followed by "Hz", a relative change or "x-low", "low", "medium", "high",
+    /// "x-high", or "default". Labels "x-low" through "x-high" represent a sequence of
+    /// monotonically non-decreasing pitch ranges.
+    pub range: Option<PitchRange>,
+    /// a change in the speaking rate for the contained text. Legal values are: a non-negative
+    /// percentage or "x-slow", "slow", "medium", "fast", "x-fast", or "default". Labels "x-slow"
+    /// through "x-fast" represent a sequence of monotonically non-decreasing speaking rates.
+    /// When the value is a non-negative percentage it acts as a multiplier of the default rate.
+    /// For example, a value of 100% means no change in speaking rate, a value of 200% means a
+    /// speaking rate twice the default rate, and a value of 50% means a speaking rate of half
+    /// the default rate. The default rate for a voice depends on the language and dialect and on
+    /// the personality of the voice. The default rate for a voice should be such that it is
+    /// experienced as a normal speaking rate for the voice when reading aloud text. Since voices
+    /// are processor-specific, the default rate will be as well.
+    pub rate: Option<RateRange>,
+    /// duration: a value in seconds or milliseconds for the desired time to take to read the
+    /// contained text. Follows the time value format from the Cascading Style Sheet Level 2
+    /// Recommendation [CSS2], e.g. "250ms", "3s".
+    pub duration: Option<Duration>,
+    /// the volume for the contained text. Legal values are: a number preceded by "+" or "-"
+    /// and immediately followed by "dB"; or "silent", "x-soft", "soft", "medium", "loud", "x-loud",
+    /// or "default". The default is +0.0dB. Specifying a value of "silent" amounts to specifying
+    /// minus infinity decibels (dB). Labels "silent" through "x-loud" represent a sequence of
+    /// monotonically non-decreasing volume levels. When the value is a signed number (dB),
+    /// it specifies the ratio of the squares of the new signal amplitude (a1) and the current
+    /// amplitude (a0), and is defined in terms of dB:
+    pub volume: Option<VolumeRange>,
+}
+
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+pub struct EmphasisAttributes {
+    /// the optional level attribute indicates the strength of emphasis to be applied. Defined
+    /// values are "strong", "moderate", "none" and "reduced". The default level is "moderate".
+    /// The meaning of "strong" and "moderate" emphasis is interpreted according to the language
+    /// being spoken (languages indicate emphasis using a possible combination of pitch change,
+    /// timing changes, loudness and other acoustic differences). The "reduced" level is effectively
+    /// the opposite of emphasizing a word. For example, when the phrase "going to" is reduced it
+    /// may be spoken as "gonna". The "none" level is used to prevent the synthesis processor from
+    /// emphasizing words that it might typically emphasize. The values "none", "moderate", and "strong"
+    /// are monotonically non-decreasing in strength.
+    pub level: Option<EmphasisLevel>,
 }
