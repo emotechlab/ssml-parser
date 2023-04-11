@@ -1,6 +1,6 @@
 use crate::elements::*;
 use crate::*;
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use quick_xml::events::{BytesStart, BytesText, Event};
 use quick_xml::reader::Reader;
 use std::cmp::{Ord, Ordering};
@@ -176,7 +176,7 @@ fn parse_element<R: io::BufRead>(
         SsmlElement::Sentence => ParsedElement::Sentence,
         SsmlElement::Token => ParsedElement::Token,
         SsmlElement::Word => ParsedElement::Word,
-        SsmlElement::SayAs => ParsedElement::SayAs,
+        SsmlElement::SayAs => parse_say_as(elem, reader)?,
         SsmlElement::Phoneme => parse_phoneme(elem, reader)?,
         SsmlElement::Sub => ParsedElement::Sub,
         SsmlElement::Lang => ParsedElement::Lang,
@@ -228,6 +228,31 @@ fn parse_speak<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
         lang,
         base,
         on_lang_failure,
+    }))
+}
+
+fn parse_say_as<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    // TODO: maybe rewrite the error handling in other parse functions to look like this.
+    let interpret_as = elem
+        .try_get_attribute("interpret-as")?
+        .context("interpret-as attribute is required with a say-as element")?
+        .decode_and_unescape_value(reader)?
+        .to_string();
+
+    let format = match elem.try_get_attribute("format")? {
+        Some(attr) => Some(attr.decode_and_unescape_value(reader)?.to_string()),
+        None => None,
+    };
+
+    let detail = match elem.try_get_attribute("detail")? {
+        Some(attr) => Some(attr.decode_and_unescape_value(reader)?.to_string()),
+        None => None,
+    };
+
+    Ok(ParsedElement::SayAs(SayAsAttributes {
+        interpret_as,
+        format,
+        detail,
     }))
 }
 

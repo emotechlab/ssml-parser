@@ -94,7 +94,7 @@ pub enum ParsedElement {
     Sentence,
     Token,
     Word,
-    SayAs,
+    SayAs(SayAsAttributes),
     Phoneme(PhonemeAttributes),
     Sub,
     Lang,
@@ -120,7 +120,7 @@ impl From<&ParsedElement> for SsmlElement {
             ParsedElement::Sentence => Self::Sentence,
             ParsedElement::Token => Self::Token,
             ParsedElement::Word => Self::Word,
-            ParsedElement::SayAs => Self::SayAs,
+            ParsedElement::SayAs(_) => Self::SayAs,
             ParsedElement::Phoneme(_) => Self::Phoneme,
             ParsedElement::Sub => Self::Sub,
             ParsedElement::Lang => Self::Lang,
@@ -226,6 +226,36 @@ impl FromStr for SsmlElement {
 // * desc
 
 // Custom
+
+/// The say-as element allows the author to indicate information on the type of text
+/// construct contained within the element and to help specify the level of detail
+/// for rendering the contained text.
+/// The say-as element has three attributes: interpret-as, format, and detail.
+/// The interpret-as attribute is always required; the other two attributes are optional.
+/// The legal values for the format attribute depend on the value of the interpret-as attribute.
+/// The say-as element can only contain text to be rendered.
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct SayAsAttributes {
+    /// The interpret-as attribute indicates the content type of the contained text construct.
+    /// Specifying the content type helps the synthesis processor to distinguish and interpret
+    /// text constructs that may be rendered in different ways depending on what type of
+    /// information is intended.
+    pub interpret_as: String,
+    /// The optional format attribute can give further hints on the precise formatting of the
+    /// contained text for content types that may have ambiguous formats.
+    pub format: Option<String>,
+    /// The detail attribute is an optional attribute that indicates the level of detail to be
+    /// read aloud or rendered. Every value of the detail attribute must render all of the
+    /// informational content in the contained text; however, specific values for the detail
+    /// attribute can be used to render content that is not usually informational in running
+    /// text but may be important to render for specific purposes. For example, a synthesis
+    /// processor will usually render punctuations through appropriate changes in prosody.
+    /// Setting a higher level of detail may be used to speak punctuations explicitly,
+    /// e.g. for reading out coded part numbers or pieces of software code.
+    pub detail: Option<String>,
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum PhonemeAlphabet {
