@@ -83,6 +83,106 @@ pub enum SsmlElement {
     Custom(String),
 }
 
+impl SsmlElement {
+    /// Returns whether a tag can contain other tags - will always be true for custom tags as we
+    /// want to check just in case.
+    #[inline(always)]
+    pub fn can_contain_tags(&self) -> bool {
+        // empty elements
+        // * Lexicon
+        // * Meta
+        // * Metadata (can contain content but is ignored by synthesis processor)
+        // * say-as can only contain text to render (word is the same)
+        // * phoneme is text only
+        // * sub subtitles  only (no elements)
+        // * description is only for inside audio tag and not to be rendered
+        // * mark element is empty element used as a bookmark
+        matches!(
+            self,
+            Self::Speak
+                | Self::Paragraph
+                | Self::Sentence
+                | Self::Voice
+                | Self::Emphasis
+                | Self::Token
+                | Self::Word
+                | Self::Lang
+                | Self::Prosody
+                | Self::Audio
+                | Self::Custom(_)
+        )
+    }
+
+    /// Check whether the provided element can contain another specified tag. For custom elements
+    /// if an element can contain tags it will be assumed it can contain the custom one as these
+    /// are outside of the SSML specification.
+    pub fn can_contain(&self, other: &Self) -> bool {
+        match (self, other) {
+            (a, Self::Custom(_)) if a.can_contain_tags() => true,
+            (a, _) if !a.can_contain_tags() => false,
+            (_, Self::Speak) => false,
+            (Self::Speak, _) => true,
+            (Self::Paragraph, a) => a.allowed_in_paragraph(),
+            (Self::Sentence, a) => a.allowed_in_sentence(),
+            (Self::Voice, a) => a.allowed_in_speak(), // Everything allowed inside
+            (Self::Emphasis, a) => a.allowed_in_sentence(), // Emphasis and sentence lists match
+            (Self::Token | Self::Word, a) => a.allowed_in_token(),
+            (Self::Lang, a) => a.allowed_in_speak(),
+            (Self::Prosody, a) => a.allowed_in_speak(),
+            (Self::Audio, a) => a.allowed_in_speak(),
+            (Self::Custom(_), _) => true,
+            _ => false, // Should be unreachable
+        }
+    }
+
+    #[inline(always)]
+    fn allowed_in_paragraph(&self) -> bool {
+        matches!(self, Self::Sentence) || self.allowed_in_sentence()
+    }
+
+    #[inline(always)]
+    fn allowed_in_sentence(&self) -> bool {
+        matches!(
+            self,
+            Self::Custom(_)
+                | Self::Audio
+                | Self::Break
+                | Self::Emphasis
+                | Self::Lang
+                | Self::Lookup
+                | Self::Mark
+                | Self::Phoneme
+                | Self::Prosody
+                | Self::SayAs
+                | Self::Sub
+                | Self::Token
+                | Self::Voice
+                | Self::Word
+        )
+    }
+
+    #[inline(always)]
+    fn allowed_in_speak(&self) -> bool {
+        self != &Self::Speak
+    }
+
+    #[inline(always)]
+    fn allowed_in_token(&self) -> bool {
+        matches!(
+            self,
+            Self::Audio
+                | Self::Break
+                | Self::Emphasis
+                | Self::Mark
+                | Self::Phoneme
+                | Self::Prosody
+                | Self::SayAs
+                | Self::Sub
+                | Self::Custom(_)
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParsedElement {
     Speak(SpeakAttributes),
@@ -106,6 +206,16 @@ pub enum ParsedElement {
     Mark,
     Description,
     Custom((String, HashMap<String, String>)),
+}
+
+impl ParsedElement {
+    pub fn can_contain_tags(&self) -> bool {
+        SsmlElement::from(self).can_contain_tags()
+    }
+
+    pub fn can_contain(&self, other: &Self) -> bool {
+        SsmlElement::from(self).can_contain(&SsmlElement::from(other))
+    }
 }
 
 impl From<&ParsedElement> for SsmlElement {

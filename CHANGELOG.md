@@ -12,3 +12,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Full support for `<break/>` element
 - Full support for `<phoneme>` elements
 - Character position reporting for spans (not byte or grapheme)
+- Reject invalid nesting of elements and add API functions too check if elements can be nested
