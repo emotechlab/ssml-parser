@@ -763,6 +763,27 @@ impl FromStr for RateRange {
     }
 }
 
+/*impl fmt::Display for RateRange {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        let rateStrength = match Self::Strength {
+            RateStrength::XSlow => "x-slow",
+            RateStrength::Slow => "slow",
+            RateStrength::Medium => "medium",
+            RateStrength::Fast => "fast",
+            RateStrength::XFast => "x-fast",
+            RateStrength::Default => "default",
+            e => "",
+        };
+        write!(fmt, "{}", rateStrength)
+    }
+}*/
+
+impl fmt::Display for RateRange {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "{}", Self::Strength)
+    }
+}
+
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
