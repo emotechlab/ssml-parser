@@ -767,7 +767,7 @@ impl fmt::Display for RateRange {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Strength(strength) => write!(fmt, "{}", strength),
-            Self::Percentage(percent) => write!(fmt, "{:?}%", percent),
+            Self::Percentage(percent) => write!(fmt, "{}%", percent),
         }
     }
 }
@@ -878,6 +878,15 @@ impl FromStr for PositiveNumber {
                 }
             }
             e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
+impl fmt::Display for PositiveNumber {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::FloatNumber(floatnum) => write!(fmt, "{}", floatnum),
+            Self::RoundNumber(roundnum) => write!(fmt, "{}%", roundnum),
         }
     }
 }
