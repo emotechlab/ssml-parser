@@ -767,7 +767,7 @@ impl fmt::Display for RateRange {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Strength(strength) => write!(fmt, "{:?}", strength),
-            Self::Percentage(percent) => write!(fmt, "{:?}%", percent)
+            Self::Percentage(percent) => write!(fmt, "{:?}%", percent),
         }
     }
 }
