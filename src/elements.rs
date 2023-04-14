@@ -766,7 +766,7 @@ impl FromStr for RateRange {
 impl fmt::Display for RateRange {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Strength(strength) => write!(fmt, "{:?}", strength),
+            Self::Strength(strength) => write!(fmt, "{}", strength),
             Self::Percentage(percent) => write!(fmt, "{:?}%", percent),
         }
     }
