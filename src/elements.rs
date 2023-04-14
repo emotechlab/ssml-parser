@@ -886,7 +886,7 @@ impl fmt::Display for PositiveNumber {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::FloatNumber(floatnum) => write!(fmt, "{}", floatnum),
-            Self::RoundNumber(roundnum) => write!(fmt, "{}%", roundnum),
+            Self::RoundNumber(roundnum) => write!(fmt, "{}", roundnum),
         }
     }
 }
