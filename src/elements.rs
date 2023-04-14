@@ -42,6 +42,7 @@
 use anyhow::bail;
 use std::collections::HashMap;
 use std::convert::Infallible;
+use std::fmt;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -490,6 +491,21 @@ impl FromStr for PitchStrength {
     }
 }
 
+impl fmt::Display for PitchStrength {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        let pitchStrength = match self {
+            PitchStrength::XLow => "x-low",
+            PitchStrength::Low => "low",
+            PitchStrength::Medium => "medium",
+            PitchStrength::High => "high",
+            PitchStrength::XHigh => "x-high",
+            PitchStrength::Default => "default",
+            e => "",
+        };
+        write!(fmt, "{}", pitchStrength)
+    }
+}
+
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -558,6 +574,21 @@ impl FromStr for RateStrength {
             "default" => Ok(Self::Default),
             e => bail!("Unrecognised value {}", e),
         }
+    }
+}
+
+impl fmt::Display for RateStrength {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        let rateStrength = match self {
+            RateStrength::XSlow => "x-slow",
+            RateStrength::Slow => "slow",
+            RateStrength::Medium => "medium",
+            RateStrength::Fast => "fast",
+            RateStrength::XFast => "x-fast",
+            RateStrength::Default => "default",
+            e => "",
+        };
+        write!(fmt, "{}", rateStrength)
     }
 }
 
