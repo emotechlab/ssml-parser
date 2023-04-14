@@ -763,24 +763,12 @@ impl FromStr for RateRange {
     }
 }
 
-/*impl fmt::Display for RateRange {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let rateStrength = match Self::Strength {
-            RateStrength::XSlow => "x-slow",
-            RateStrength::Slow => "slow",
-            RateStrength::Medium => "medium",
-            RateStrength::Fast => "fast",
-            RateStrength::XFast => "x-fast",
-            RateStrength::Default => "default",
-            e => "",
-        };
-        write!(fmt, "{}", rateStrength)
-    }
-}*/
-
 impl fmt::Display for RateRange {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "{}", Self::Strength)
+        match self {
+            Self::Strength(strength) => write!(fmt, "{:?}", strength),
+            Self::Percentage(percent) => write!(fmt, "{:?}%", percent)
+        }
     }
 }
 
