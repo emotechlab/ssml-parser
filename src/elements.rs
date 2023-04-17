@@ -834,7 +834,7 @@ impl FromStr for ContourElement {
 impl fmt::Display for ContourElement {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Element((pct, pitchRange)) => write!(fmt, "({}%,{})", pct, pitchRange),
+            Self::Element((pct, pitchRange)) => write!(fmt, "({}%,{})", pct, pitchRange.to_string()),
         }
     }
 }
@@ -870,7 +870,7 @@ impl FromStr for PitchContour {
 impl fmt::Display for PitchContour {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Elements(elements) => write!(fmt, "{:?}", elements),
+            Self::Elements(elements) => for element in elements {write!(fmt, "{} ", element)},
         }
     }
 }
