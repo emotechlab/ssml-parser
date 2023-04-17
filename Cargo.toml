@@ -7,5 +7,9 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.68"
+http = "0.2.9"
 indexmap = "1.9.2"
+lazy_static = "1.4"
+mediatype = "0.19.13"
 quick-xml = "0.27.1"
+regex = "1"

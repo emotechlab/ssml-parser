@@ -86,7 +86,8 @@ pub enum SsmlElement {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParsedElement {
     Speak(SpeakAttributes),
-    Lexicon,
+    // TODO: spec mentions `lexicon` can only be immediate children of `speak`. enforce this check
+    Lexicon(LexiconAttributes),
     Lookup,
     Meta,
     Metadata,
@@ -112,7 +113,7 @@ impl From<&ParsedElement> for SsmlElement {
     fn from(elem: &ParsedElement) -> Self {
         match elem {
             ParsedElement::Speak(_) => Self::Speak,
-            ParsedElement::Lexicon => Self::Lexicon,
+            ParsedElement::Lexicon(_) => Self::Lexicon,
             ParsedElement::Lookup => Self::Lookup,
             ParsedElement::Meta => Self::Meta,
             ParsedElement::Metadata => Self::Metadata,
@@ -226,6 +227,54 @@ impl FromStr for SsmlElement {
 // * desc
 
 // Custom
+
+/// An SSML document MAY reference one or more lexicon documents. A lexicon
+/// document is located by a URI with an OPTIONAL media type and is assigned a
+/// name that is unique in the SSML document. Any number of lexicon elements MAY
+/// occur as immediate children of the speak element.
+///
+/// The lexicon element MUST have a uri attribute specifying a URI that identifies
+/// the location of the lexicon document.
+///
+/// The lexicon element MUST have an xml:id attribute that assigns a name to the
+/// lexicon document. The name MUST be unique to the current SSML document. The
+/// scope of this name is the current SSML document.
+///
+/// The lexicon element MAY have a type attribute that specifies the media type of
+/// the lexicon document. The default value of the type attribute is
+/// application/pls+xml, the media type associated with Pronunciation Lexicon
+/// Specification [PLS] documents as defined in [RFC4267].
+///
+/// The lexicon element MAY have a fetchtimeout attribute that specifies the timeout
+/// for fetches. The value is a Time Designation. The default value is processor-specific.
+///
+/// The lexicon element MAY have a maxage attribute that indicates that the document is
+/// willing to use content whose age is no greater than the specified time
+/// (cf. 'max-age' in HTTP 1.1 [RFC2616]). The value is an xsd:nonNegativeInteger
+/// [SCHEMA2 §3.3.20]. The document is not willing to use stale content, unless maxstale
+/// is also provided.
+///
+/// The lexicon element MAY have a maxstale attribute that indicates that the document is
+/// willing to use content that has exceeded its expiration time (cf. 'max-stale' in HTTP 1.1
+/// [RFC2616]). The value is an xsd:nonNegativeInteger [SCHEMA2 §3.3.20]. If maxstale is
+/// assigned a value, then the document is willing to accept content that has exceeded its
+/// expiration time by no more than the specified amount of time.
+///
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Debug, Clone, PartialEq)]
+pub struct LexiconAttributes {
+    pub uri: http::Uri,
+    pub xml_id: String,
+    pub ty: Option<mediatype::MediaTypeBuf>,
+    pub fetchtimeout: Option<TimeDesignation>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TimeDesignation {
+    Seconds(f32),
+    Milliseconds(f32),
+}
 
 /// The say-as element allows the author to indicate information on the type of text
 /// construct contained within the element and to help specify the level of detail
