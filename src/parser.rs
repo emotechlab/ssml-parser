@@ -2,7 +2,7 @@ use crate::elements::*;
 use crate::*;
 use anyhow::{bail, Context, Result};
 use lazy_static::lazy_static;
-use mediatype::{MediaType, MediaTypeBuf};
+use mediatype::MediaTypeBuf;
 use quick_xml::events::{BytesStart, BytesText, Event};
 use quick_xml::reader::Reader;
 use regex::Regex;
@@ -178,7 +178,7 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                 }
             }
             Event::Empty(e) => {
-                let (ty, element) = parse_element(e, &reader)?;
+                let (_, element) = parse_element(e, &reader)?;
                 let span = Span {
                     start: text_buffer.chars().count(),
                     end: text_buffer.chars().count(),
@@ -483,10 +483,6 @@ fn parse_prosody<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result
         duration,
         volume,
     }))
-}
-
-fn parse_paragraph<R: io::BufRead>(reader: &mut Reader<R>) -> Result<()> {
-    todo!()
 }
 
 fn parse_duration(duration: &str) -> Result<Duration> {

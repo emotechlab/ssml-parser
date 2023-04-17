@@ -1,5 +1,4 @@
 use crate::parser::Span;
-use indexmap::IndexMap;
 /// Valid SSML:
 ///
 /// ```xml
@@ -16,11 +15,6 @@ use indexmap::IndexMap;
 /// <p><s>This is sentence one.</s><s>This is sentence two.</s></p
 /// </speak>
 /// ```
-use quick_xml::events::Event;
-use quick_xml::reader::Reader;
-use std::io;
-use std::time::Duration;
-
 pub mod elements;
 pub mod parser;
 

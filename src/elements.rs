@@ -797,21 +797,21 @@ impl FromStr for ContourElement {
                 let value = value.strip_suffix(")").unwrap().to_string();
                 let value = value.strip_prefix("(").unwrap().to_string();
                 let elements = value.split(",").collect::<Vec<_>>();
-                let mut percentage = 0.0;
+                
+                let pitch = match PitchRange::from_str(&elements[1]) {
+                    Ok(result) => result,
+                    Err(e) => bail!("Error: {}", e),
+                };
+
                 if elements[0].ends_with("%") {
-                    percentage = elements[0].strip_suffix("%").unwrap().parse::<f32>()?;
+                    let percentage = elements[0].strip_suffix("%").unwrap().parse::<f32>()?;
+                    Ok(Self::Element((percentage, pitch)))
                 } else {
                     bail!(
                         "Unrecognised value {}",
                         "Invalid percentage in pitch contour"
                     );
                 }
-                let pitch = match PitchRange::from_str(&elements[1]) {
-                    Ok(result) => result,
-                    Err(e) => bail!("Error: {}", e),
-                };
-
-                Ok(Self::Element((percentage, pitch)))
             }
             e => bail!("Unrecognised value {}", e),
         }
@@ -829,17 +829,17 @@ impl FromStr for PitchContour {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut pitchContourElements = Vec::new();
+        let mut pitch_contour_elements = Vec::new();
         match s {
             value if value.starts_with("(") => {
                 let elements = value.split(" ").collect::<Vec<_>>();
 
                 for element in elements {
                     let pitchcontourelement = ContourElement::from_str(&element)?;
-                    pitchContourElements.push(pitchcontourelement);
+                    pitch_contour_elements.push(pitchcontourelement);
                 }
 
-                Ok(Self::Elements(pitchContourElements))
+                Ok(Self::Elements(pitch_contour_elements))
             }
             e => bail!("Unrecognised value {}", e),
         }
