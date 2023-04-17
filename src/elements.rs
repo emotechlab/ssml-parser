@@ -797,7 +797,7 @@ impl FromStr for ContourElement {
                 let value = value.strip_suffix(")").unwrap().to_string();
                 let value = value.strip_prefix("(").unwrap().to_string();
                 let elements = value.split(",").collect::<Vec<_>>();
-                
+
                 let pitch = match PitchRange::from_str(&elements[1]) {
                     Ok(result) => result,
                     Err(e) => bail!("Error: {}", e),
