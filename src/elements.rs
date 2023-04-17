@@ -887,7 +887,7 @@ impl fmt::Display for PitchContour {
                         start = false;
                     }
                 }
-                write!(fmt, "{} ", all_elements_str)
+                write!(fmt, "{}", all_elements_str)
             }
         }
     }
