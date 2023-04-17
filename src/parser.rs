@@ -215,7 +215,7 @@ fn parse_element<R: io::BufRead>(
         SsmlElement::Word => parse_word(elem, reader)?,
         SsmlElement::SayAs => parse_say_as(elem, reader)?,
         SsmlElement::Phoneme => parse_phoneme(elem, reader)?,
-        SsmlElement::Sub => ParsedElement::Sub,
+        SsmlElement::Sub => parse_sub(elem, reader)?,
         SsmlElement::Lang => ParsedElement::Lang,
         SsmlElement::Voice => ParsedElement::Voice,
         SsmlElement::Emphasis => parse_emphasis(elem, reader)?,
@@ -450,6 +450,16 @@ fn parse_break<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
     };
 
     Ok(ParsedElement::Break(BreakAttributes { strength, time }))
+}
+
+fn parse_sub<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let alias = elem
+        .try_get_attribute("alias")?
+        .context("alias attribute required for sub element")?
+        .decode_and_unescape_value(reader)?
+        .to_string();
+
+    Ok(ParsedElement::Sub(SubAttributes { alias }))
 }
 
 fn parse_emphasis<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {

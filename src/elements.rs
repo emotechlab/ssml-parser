@@ -198,7 +198,7 @@ pub enum ParsedElement {
     Word(TokenAttributes),
     SayAs(SayAsAttributes),
     Phoneme(PhonemeAttributes),
-    Sub,
+    Sub(SubAttributes),
     Lang,
     Voice,
     Emphasis(EmphasisAttributes),
@@ -234,7 +234,7 @@ impl From<&ParsedElement> for SsmlElement {
             ParsedElement::Word(_) => Self::Word,
             ParsedElement::SayAs(_) => Self::SayAs,
             ParsedElement::Phoneme(_) => Self::Phoneme,
-            ParsedElement::Sub => Self::Sub,
+            ParsedElement::Sub(_) => Self::Sub,
             ParsedElement::Lang => Self::Lang,
             ParsedElement::Voice => Self::Voice,
             ParsedElement::Emphasis(_) => Self::Emphasis,
@@ -1132,4 +1132,19 @@ pub struct EmphasisAttributes {
     /// emphasizing words that it might typically emphasize. The values "none", "moderate", and "strong"
     /// are monotonically non-decreasing in strength.
     pub level: Option<EmphasisLevel>,
+}
+
+/// The sub element is employed to indicate that the text in the alias attribute
+/// value replaces the contained text for pronunciation. This allows a document to
+/// contain both a spoken and written form. The REQUIRED alias attribute specifies
+/// the string to be spoken instead of the enclosed string. The processor SHOULD
+/// apply text normalization to the alias value.
+///
+/// The sub element can only contain text (no elements).
+///
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SubAttributes {
+    pub alias: String,
 }
