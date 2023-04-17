@@ -1077,6 +1077,16 @@ pub struct ProsodyAttributes {
     pub volume: Option<VolumeRange>,
 }
 
+impl fmt::Display for ProsodyAttributes {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        if self.pitch != None {
+            write!(fmt, "<prosody pitch='{}'>", self.pitch.unwrap().to_string())
+        } else {
+            write!(fmt, "<prosody>")
+        }
+    }
+}
+
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
