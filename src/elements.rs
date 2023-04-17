@@ -869,8 +869,22 @@ impl FromStr for PitchContour {
 
 impl fmt::Display for PitchContour {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        let mut all_elements_str = "".to_string();
+        let mut start = true;
         match self {
-            Self::Elements(elements) => for element in elements {write!(fmt, "{} ", element)},
+            Self::Elements(elements) => { for element in elements {
+                let element_str = element.to_string();
+
+                if !start {
+                    all_elements_str.push_str(" ");    
+                }
+                all_elements_str.push_str(&element_str);
+
+                if start{
+                    start = false;
+                }
+            }
+            write!(fmt, "{} ", all_elements_str) },
         }
     }
 }
