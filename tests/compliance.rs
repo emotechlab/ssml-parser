@@ -374,7 +374,7 @@ fn microsoft_custom_tags() {
         <mstts:viseme type="string"/>
         <p></p>
         <phoneme alphabet="string" ph="string"></phoneme>
-        <prosody pitch="10%" rate="105%" pitch="+19%"></prosody>
+        <prosody rate="105%" pitch="+19%"></prosody>
         <s></s>
         <say-as interpret-as="string" format="string" detail="string"></say-as>
         <sub alias="string"></sub>
