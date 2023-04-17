@@ -1081,39 +1081,39 @@ impl fmt::Display for ProsodyAttributes {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let mut attributes_str = "".to_string();
         if self.pitch != None {
-            let attribute_str = format!(" <pitch='{}'>", self.pitch.unwrap().to_string());
+            let attribute_str = format!(" pitch='{}'", self.pitch.unwrap().to_string());
             attributes_str.push_str(&attribute_str);
         }
 
         if self.contour != None {
             let attribute_str = format!(
-                " <contour='{}'>",
+                " contour='{}'",
                 self.contour.as_ref().unwrap().to_string()
             );
             attributes_str.push_str(&attribute_str);
         }
 
         if self.range != None {
-            let attribute_str = format!(" <range='{}'>", self.range.unwrap().to_string());
+            let attribute_str = format!(" range='{}'", self.range.unwrap().to_string());
             attributes_str.push_str(&attribute_str);
         }
 
         if self.rate != None {
-            let attribute_str = format!(" <rate='{}'>", self.rate.unwrap().to_string());
+            let attribute_str = format!(" rate='{}'", self.rate.unwrap().to_string());
             attributes_str.push_str(&attribute_str);
         }
 
         if self.volume != None {
-            let attribute_str = format!(" <volume='{}'>", self.volume.unwrap().to_string());
+            let attribute_str = format!(" volume='{}'", self.volume.unwrap().to_string());
             attributes_str.push_str(&attribute_str);
         }
 
         if self.duration != None {
-            let attribute_str = format!(" <duration='{:?}'>", self.duration.unwrap());
+            let attribute_str = format!(" duration='{:?}'", self.duration.unwrap());
             attributes_str.push_str(&attribute_str);
         }
 
-        write!(fmt, "{}>", attributes_str)
+        write!(fmt, "{}", attributes_str)
     }
 }
 
