@@ -270,7 +270,7 @@ fn microsoft_custom_tags() {
         <break strength="medium" time="5s" />
         <emphasis level="reduced"></emphasis>
         <lang xml:lang="string"></lang>
-        <lexicon uri="string"/>
+        <lexicon xml:id="some_id" uri="string"/>
         <math xmlns="http://www.w3.org/1998/Math/MathML"></math>
         <mstts:express-as style="string" styledegree="value" role="string"></mstts:express-as>
         <mstts:silence type="string" value="string"/>
