@@ -543,6 +543,22 @@ impl FromStr for VolumeStrength {
     }
 }
 
+impl fmt::Display for VolumeStrength {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        let volumeStrength = match self {
+            VolumeStrength::Silent => "x-low",
+            VolumeStrength::XSoft => "low",
+            VolumeStrength::Soft => "medium",
+            VolumeStrength::Medium => "high",
+            VolumeStrength::Loud => "x-high",
+            VolumeStrength::XLoud => "x-loud",
+            VolumeStrength::Default => "default",
+            e => "",
+        };
+        write!(fmt, "{}", volumeStrength)
+    }
+}
+
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -717,6 +733,15 @@ impl FromStr for VolumeRange {
                 }
             }
             e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
+impl fmt::Display for VolumeRange {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Strength(strength) => write!(fmt, "{}", strength),
+            Self::Decibel(percent) => write!(fmt, "{}dB", percent),
         }
     }
 }
