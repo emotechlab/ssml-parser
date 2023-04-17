@@ -613,8 +613,8 @@ impl fmt::Display for RateStrength {
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub enum PitchRange {
     Strength(PitchStrength), // low, medium high etc
-    Frequency((f32, Unit)),
-    RelativeChange((f32, Unit)),
+    Frequency((f32)),
+    RelativeChange((f32, char, Unit)),
 }
 
 impl FromStr for PitchRange {
@@ -633,64 +633,75 @@ impl FromStr for PitchRange {
                     if value.starts_with("+") || value.starts_with("-") {
                         if value.starts_with("-") {
                             Ok(Self::RelativeChange((
-                                value.strip_suffix("Hz").unwrap().parse::<f32>()?,
+                                value.strip_suffix("Hz").unwrap().parse::<f32>()? * -1.0,
+                                '-',
                                 Unit::Hz,
                             )))
                         } else {
                             Ok(Self::RelativeChange((
-                                value.strip_suffix("Hz").unwrap().parse()?,
+                                value.strip_suffix("Hz").unwrap().parse::<f32>()?,
+                                '+',
                                 Unit::Hz,
                             )))
                         }
                     } else {
-                        Ok(Self::Frequency((
-                            value.strip_suffix("Hz").unwrap().parse()?,
-                            Unit::Hz,
-                        )))
+                        Ok(Self::Frequency(
+                            value.strip_suffix("Hz").unwrap().parse::<f32>()?,
+                        ))
                     }
                 } else if value.ends_with("%") {
                     if value.starts_with("+") || value.starts_with("-") {
                         if value.starts_with("-") {
                             Ok(Self::RelativeChange((
-                                value.strip_suffix("%").unwrap().parse::<f32>()?,
+                                value.strip_suffix("%").unwrap().parse::<f32>()? * -1.0,
+                                '-',
                                 Unit::Percentage,
                             )))
                         } else {
                             Ok(Self::RelativeChange((
-                                value.strip_suffix("%").unwrap().parse()?,
+                                value.strip_suffix("%").unwrap().parse::<f32>()?,
+                                '+',
                                 Unit::Percentage,
                             )))
                         }
                     } else {
-                        Ok(Self::RelativeChange((
-                            value.strip_suffix("%").unwrap().parse()?,
-                            Unit::Percentage,
-                        )))
+                        bail!("Unrecognised value {}", "Pitch value unrecognised");
                     }
                 } else if value.ends_with("st") {
                     if value.starts_with("+") || value.starts_with("-") {
                         if value.starts_with("-") {
                             Ok(Self::RelativeChange((
-                                value.strip_suffix("st").unwrap().parse::<f32>()?,
+                                value.strip_suffix("st").unwrap().parse::<f32>()? * -1.0,
+                                '-',
                                 Unit::St,
                             )))
                         } else {
                             Ok(Self::RelativeChange((
-                                value.strip_suffix("st").unwrap().parse()?,
+                                value.strip_suffix("st").unwrap().parse::<f32>()?,
+                                '+',
                                 Unit::St,
                             )))
                         }
                     } else {
-                        Ok(Self::RelativeChange((
-                            value.strip_suffix("st").unwrap().parse()?,
-                            Unit::St,
-                        )))
+                        bail!("Unrecognised value {}", "Pitch value unrecognised");
                     }
                 } else {
                     bail!("Unrecognised value {}", "Pitch value unrecognised");
                 }
             }
             e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
+impl fmt::Display for PitchRange {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Strength(strength) => write!(fmt, "{}", strength),
+            Self::Frequency(frequency) => write!(fmt, "{}Hz", frequency),
+            Self::RelativeChange((relchange, sign, unit)) => {
+                write!(fmt, "{}{}{}", sign, relchange, unit)
+            }
         }
     }
 }
@@ -912,6 +923,16 @@ pub enum Unit {
     St,
     /// None
     Percentage,
+}
+
+impl fmt::Display for Unit {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Hz => write!(fmt, "{}", "Hz"),
+            Self::St => write!(fmt, "{}", "st"),
+            Self::Percentage => write!(fmt, "{}", "%"),
+        }
+    }
 }
 
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
