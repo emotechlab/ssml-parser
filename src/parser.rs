@@ -206,7 +206,7 @@ fn parse_element<R: io::BufRead>(
     let res = match elem_type {
         SsmlElement::Speak => parse_speak(elem, reader)?,
         SsmlElement::Lexicon => parse_lexicon(elem, reader)?,
-        SsmlElement::Lookup => ParsedElement::Lookup,
+        SsmlElement::Lookup => parse_lookup(elem, reader)?,
         SsmlElement::Meta => ParsedElement::Meta,
         SsmlElement::Metadata => ParsedElement::Metadata,
         SsmlElement::Paragraph => ParsedElement::Paragraph,
@@ -322,6 +322,16 @@ fn parse_lexicon<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result
         fetchtimeout,
         ty,
     }))
+}
+
+fn parse_lookup<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let lookup_ref = elem
+        .try_get_attribute("ref")?
+        .context("ref attribute is required with a lookup element")?
+        .decode_and_unescape_value(reader)?
+        .to_string();
+
+    Ok(ParsedElement::Lookup(LookupAttributes { lookup_ref }))
 }
 
 fn parse_say_as<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {

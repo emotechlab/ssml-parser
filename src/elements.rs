@@ -188,7 +188,7 @@ pub enum ParsedElement {
     Speak(SpeakAttributes),
     // TODO: spec mentions `lexicon` can only be immediate children of `speak`. enforce this check
     Lexicon(LexiconAttributes),
-    Lookup,
+    Lookup(LookupAttributes),
     Meta,
     Metadata,
     Paragraph,
@@ -224,7 +224,7 @@ impl From<&ParsedElement> for SsmlElement {
         match elem {
             ParsedElement::Speak(_) => Self::Speak,
             ParsedElement::Lexicon(_) => Self::Lexicon,
-            ParsedElement::Lookup => Self::Lookup,
+            ParsedElement::Lookup(_) => Self::Lookup,
             ParsedElement::Meta => Self::Meta,
             ParsedElement::Metadata => Self::Metadata,
             ParsedElement::Paragraph => Self::Paragraph,
@@ -384,6 +384,45 @@ pub struct LexiconAttributes {
 pub enum TimeDesignation {
     Seconds(f32),
     Milliseconds(f32),
+}
+
+/// The lookup element MUST have a ref attribute. The ref attribute specifies a
+/// name that references a lexicon document as assigned by the xml:id attribute
+/// of the lexicon element.
+///
+/// The referenced lexicon document may contain information (e.g., pronunciation)
+///  for tokens that can appear in a text to be rendered. For PLS lexicon documents
+/// , the information contained within the PLS document MUST be used by the synthesis
+///  processor when rendering tokens that appear within the context of a lookup
+/// element. For non-PLS lexicon documents, the information contained within the
+/// lexicon document SHOULD be used by the synthesis processor when rendering tokens
+/// that appear within the content of a lookup element, although the processor MAY
+/// choose not to use the information if it is deemed incompatible with the content
+/// of the SSML document. For example, a vendor-specific lexicon may be used only for
+/// particular values of the interpret-as attribute of the say-as element, or for a
+/// particular set of voices. Vendors SHOULD document the expected behavior of the
+/// synthesis processor when SSML content refers to a non-PLS lexicon.
+///
+/// A lookup element MAY contain other lookup elements. When a lookup element contains
+/// other lookup elements, the child lookup elements have higher precedence. Precedence
+/// means that a token is first looked up in the lexicon with highest precedence. Only
+/// if the token is not found in that lexicon is it then looked up in the lexicon with
+/// the next lower precedence, and so on until the token is successfully found or until
+/// all lexicons have been used for lookup. It is assumed that the synthesis processor
+/// already has one or more built-in system lexicons which will be treated as having
+/// a lower precedence than those specified using the lexicon and lookup elements.
+/// Note that if a token is not within the scope of at least one lookup element, then
+/// the token can only be looked up in the built-in system lexicons.
+///
+/// The lookup element can only contain text to be rendered and the following elements:
+/// audio, break, emphasis, lang, lookup, mark, p, phoneme, prosody, say-as, sub, s,
+/// token, voice, w.
+///
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Debug, Clone, PartialEq)]
+pub struct LookupAttributes {
+    pub lookup_ref: String,
 }
 
 /// The say-as element allows the author to indicate information on the type of text
