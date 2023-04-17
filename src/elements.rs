@@ -1086,10 +1086,8 @@ impl fmt::Display for ProsodyAttributes {
         }
 
         if self.contour != None {
-            let attribute_str = format!(
-                " contour='{}'",
-                self.contour.as_ref().unwrap().to_string()
-            );
+            let attribute_str =
+                format!(" contour='{}'", self.contour.as_ref().unwrap().to_string());
             attributes_str.push_str(&attribute_str);
         }
 
