@@ -27,7 +27,7 @@ pub mod parser;
 #[derive(Clone, Debug)]
 pub struct Ssml {
     text: String,
-    tags: Vec<Span>,
+    pub(crate) tags: Vec<Span>,
 }
 
 impl Ssml {

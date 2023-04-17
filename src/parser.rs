@@ -13,11 +13,34 @@ use std::str::from_utf8;
 use std::str::FromStr;
 use std::time::Duration;
 
+/// Shows a region of the cleaned transcript which an SSML element applies to.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Span {
+    /// This is the index of span's start (inclusive) in terms of unicode scalar values - not bytes
+    /// or graphemes
     pub start: usize,
+    /// This is the of span's end (exclusive) in terms of unicode scalar values - not bytes
+    /// or graphemes
     pub end: usize,
+    /// The element contained within this span
     pub element: ParsedElement,
+}
+
+impl Span {
+    /// Returns true if a span is contained within another span. This only takes advantage of the
+    /// start and end indexes. Other constraints such as the fact the parser returns spans in order
+    /// they're seen need to be used in combination to see if this _really contains_ the other
+    /// span. So if you're going over the list in order you can rely on this but if you've
+    /// rearranged the tag list it may not hold true.
+    ///
+    /// This does handle tags which can't contain other tags. So `<break/><break/>` will appear
+    /// with the same start and end. However break has to be an empty tag. This function will
+    /// return false. Whereas `<s/><s/>` will return true as a sentence can contain other tags. In
+    /// future as a sentence cannot contain a sentence this may return false.
+    pub fn maybe_contains(&self, other: &Self) -> bool {
+        self.element.can_contain(&other.element)
+            && (self.start <= other.start && self.end >= other.end)
+    }
 }
 
 impl Eq for Span {}
@@ -77,13 +100,13 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
     let mut text_buffer = String::new();
     let mut open_tags = vec![];
     let mut tags = vec![];
-    //let mut prepared_tags = vec![]; todo put finished tags here
     loop {
         match reader.read_event()? {
             Event::Start(e) if e.local_name().as_ref() == b"speak" => {
-                // TODO how to handle nested speech tags
                 if !has_started {
                     text_buffer.clear();
+                } else {
+                    bail!("Speak element cannot be placed inside a Speak");
                 }
                 has_started = true;
                 let span = Span {
@@ -92,10 +115,13 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                     element: parse_speak(e, &reader)?,
                 };
                 open_tags.push((SsmlElement::Speak, tags.len(), span));
-                // Okay we have speech top level here.
-                //todo!();
             }
             Event::Start(e) => {
+                // TODO implement ordering constraints:
+                //
+                // The meta, metadata and lexicon elements must occur before all other elements and text
+                // contained within the root speak element. There are no other ordering constraints on the
+                // elements in this specification.
                 if has_started {
                     if !(text_buffer.is_empty() || text_buffer.ends_with(char::is_whitespace))
                         && matches!(e.local_name().as_ref(), b"s" | b"p")
@@ -109,6 +135,12 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                         end: text_buffer.chars().count(),
                         element,
                     };
+                    match open_tags.last().map(|x| &x.0) {
+                        Some(open_type) if !open_type.can_contain(&ty) => {
+                            bail!("{:?} cannot be placed inside {:?}", ty, open_type)
+                        }
+                        _ => {}
+                    }
                     open_tags.push((ty, tags.len(), new_span));
                 }
             }
@@ -119,6 +151,8 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
             | Event::DocType(_) => continue,
             Event::Eof => break,
             Event::Text(e) => {
+                // TODO we should stop text contents of tags where insides shouldn't be added to
+                // synthesis output from entering our text buffer
                 push_text(e, &mut text_buffer)?;
             }
             Event::End(e) => {
@@ -529,5 +563,34 @@ mod tests {
 
         assert_eq!(master_span_ascii.end, master_span_unicode.end);
         assert_eq!(master_span_ascii.end, ascii.get_text().chars().count());
+    }
+
+    #[test]
+    fn span_contains() {
+        let empty = parse_ssml("<speak><break/><break/></speak>").unwrap();
+
+        assert!(empty.tags[0].maybe_contains(&empty.tags[1]));
+        assert!(empty.tags[0].maybe_contains(&empty.tags[2]));
+        assert!(!empty.tags[1].maybe_contains(&empty.tags[2]));
+
+        let hello = parse_ssml("<speak>Hello <s><w>hello</w></s> world <break/></speak>").unwrap();
+        assert!(hello.tags[0].maybe_contains(&hello.tags[1]));
+        assert!(hello.tags[0].maybe_contains(&hello.tags[2]));
+        assert!(hello.tags[0].maybe_contains(&hello.tags[3]));
+        assert!(hello.tags[1].maybe_contains(&hello.tags[2]));
+        assert!(!hello.tags[1].maybe_contains(&hello.tags[3]));
+        assert!(!hello.tags[2].maybe_contains(&hello.tags[3]));
+
+        let empty = parse_ssml("<speak>Hello <p></p><p></p></speak>").unwrap();
+        assert!(!empty.tags[1].maybe_contains(&empty.tags[2]));
+
+        let break_inside_custom = parse_ssml(r#"<speak><mstts:express-as style="string" styledegree="value" role="string">hello<break/> world</mstts:express-as></speak>"#).unwrap();
+        assert!(break_inside_custom.tags[1].maybe_contains(&break_inside_custom.tags[2]));
+    }
+
+    #[test]
+    fn reject_invalid_combos() {
+        assert!(parse_ssml("<speak><speak>hello</speak></speak>").is_err());
+        assert!(parse_ssml("<speak><p>hello<p>world</p></p></speak>").is_err());
     }
 }
