@@ -193,7 +193,7 @@ pub enum ParsedElement {
     Metadata,
     Paragraph,
     Sentence,
-    Token,
+    Token(TokenAttributes),
     Word,
     SayAs(SayAsAttributes),
     Phoneme(PhonemeAttributes),
@@ -229,7 +229,7 @@ impl From<&ParsedElement> for SsmlElement {
             ParsedElement::Metadata => Self::Metadata,
             ParsedElement::Paragraph => Self::Paragraph,
             ParsedElement::Sentence => Self::Sentence,
-            ParsedElement::Token => Self::Token,
+            ParsedElement::Token(_) => Self::Token,
             ParsedElement::Word => Self::Word,
             ParsedElement::SayAs(_) => Self::SayAs,
             ParsedElement::Phoneme(_) => Self::Phoneme,
@@ -452,6 +452,44 @@ pub struct MetaAttributes {
     pub name: Option<String>,
     pub http_equiv: Option<String>,
     pub content: String,
+}
+/// The token element allows the author to indicate its content is a token and to
+/// eliminate token (word) segmentation ambiguities of the synthesis processor.
+///
+/// The token element is necessary in order to render languages
+///  - that do not use white space as a token boundary identifier, such as Chinese,
+///    Thai, and Japanese
+///  - that use white space for syllable segmentation, such as Vietnamese
+///  - that use white space for other purposes, such as Urdu
+///
+/// Use of this element can result in improved cues for prosodic control (e.g.,
+/// pause) and may assist the synthesis processor in selection of the correct
+/// pronunciation for homographs. Other elements such as break, mark, and prosody
+/// are permitted within token to allow annotation at a sub-token level (e.g.,
+/// syllable, mora, or whatever units are reasonable for the current language).
+///
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TokenAttributes {
+    /// `role` is an OPTIONAL defined attribute on the token element. The role
+    /// attribute takes as its value one or more white space separated QNames
+    /// (as defined in Section 4 of Namespaces in XML (1.0 [XMLNS 1.0] or 1.1
+    /// [XMLNS 1.1], depending on the version of XML being used)). A QName in
+    /// the attribute content is expanded into an expanded-name using the
+    /// namespace declarations in scope for the containing token element. Thus,
+    ///  each QName provides a reference to a specific item in the designated
+    /// namespace. In the second example below, the QName within the role
+    /// attribute expands to the "VV0" item in the
+    /// "http://www.example.com/claws7tags" namespace. This mechanism allows
+    /// for referencing defined taxonomies of word classes, with the expectation
+    /// that they are documented at the specified namespace URI.
+    ///
+    /// The role attribute is intended to be of use in synchronizing with other
+    /// specifications, for example to describe additional information to help
+    /// the selection of the most appropriate pronunciation for the contained
+    /// text inside an external lexicon (see lexicon documents).
+    pub role: Option<String>,
 }
 
 /// The say-as element allows the author to indicate information on the type of text
