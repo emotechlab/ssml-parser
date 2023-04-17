@@ -716,10 +716,13 @@ impl FromStr for VolumeRange {
             "x-loud" => Ok(Self::Strength(VolumeStrength::XLoud)),
             "default" => Ok(Self::Strength(VolumeStrength::Default)),
             value if value.ends_with("dB") => {
-                if value.starts_with("+") || value.starts_with("-") {
+                Ok(Self::Decibel(
+                    value.strip_suffix("dB").unwrap().parse::<f32>()?,
+                ))
+                /*if value.starts_with("+") || value.starts_with("-") {
                     if value.starts_with("-") {
                         Ok(Self::Decibel(
-                            value.strip_suffix("dB").unwrap().parse::<f32>()? * -1.0,
+                            value.strip_suffix("dB").strip_prefix("-").unwrap().parse::<f32>()? * -1.0,
                         ))
                     } else {
                         Ok(Self::Decibel(
@@ -730,7 +733,7 @@ impl FromStr for VolumeRange {
                     Ok(Self::Decibel(
                         value.strip_suffix("dB").unwrap().parse::<f32>()?,
                     ))
-                }
+                }*/
             }
             e => bail!("Unrecognised value {}", e),
         }
