@@ -546,11 +546,11 @@ impl FromStr for VolumeStrength {
 impl fmt::Display for VolumeStrength {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let volumeStrength = match self {
-            VolumeStrength::Silent => "x-low",
-            VolumeStrength::XSoft => "low",
-            VolumeStrength::Soft => "medium",
-            VolumeStrength::Medium => "high",
-            VolumeStrength::Loud => "x-high",
+            VolumeStrength::Silent => "silent",
+            VolumeStrength::XSoft => "x-soft",
+            VolumeStrength::Soft => "soft",
+            VolumeStrength::Medium => "medium",
+            VolumeStrength::Loud => "loud",
             VolumeStrength::XLoud => "x-loud",
             VolumeStrength::Default => "default",
             e => "",
