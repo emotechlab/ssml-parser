@@ -613,7 +613,7 @@ impl fmt::Display for RateStrength {
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub enum PitchRange {
     Strength(PitchStrength), // low, medium high etc
-    Frequency((f32)),
+    Frequency(f32),
     RelativeChange((f32, char, Unit)),
 }
 
@@ -831,6 +831,14 @@ impl FromStr for ContourElement {
     }
 }
 
+impl fmt::Display for ContourElement {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Element((pct, pitchRange)) => write!(fmt, "({}%,{})", pct, pitchRange),
+        }
+    }
+}
+
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
@@ -855,6 +863,14 @@ impl FromStr for PitchContour {
                 Ok(Self::Elements(pitchContourElements))
             }
             e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
+impl fmt::Display for PitchContour {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Elements(elements) => write!(fmt, "{:?}", elements),
         }
     }
 }
