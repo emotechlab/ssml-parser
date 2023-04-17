@@ -207,7 +207,7 @@ fn parse_element<R: io::BufRead>(
         SsmlElement::Speak => parse_speak(elem, reader)?,
         SsmlElement::Lexicon => parse_lexicon(elem, reader)?,
         SsmlElement::Lookup => parse_lookup(elem, reader)?,
-        SsmlElement::Meta => ParsedElement::Meta,
+        SsmlElement::Meta => parse_meta(elem, reader)?,
         SsmlElement::Metadata => ParsedElement::Metadata,
         SsmlElement::Paragraph => ParsedElement::Paragraph,
         SsmlElement::Sentence => ParsedElement::Sentence,
@@ -332,6 +332,37 @@ fn parse_lookup<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<
         .to_string();
 
     Ok(ParsedElement::Lookup(LookupAttributes { lookup_ref }))
+}
+
+fn parse_meta<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let content = elem
+        .try_get_attribute("content")?
+        .context("content attribute is required with a meta element")?
+        .decode_and_unescape_value(reader)?
+        .to_string();
+
+    let name = elem.try_get_attribute("name")?;
+    let http_equiv = elem.try_get_attribute("http-equiv")?;
+
+    let (name, http_equiv) = match (name, http_equiv) {
+        (Some(name), None) => (
+            Some(name.decode_and_unescape_value(reader)?.to_string()),
+            None,
+        ),
+        (None, Some(http_equiv)) => (
+            None,
+            Some(http_equiv.decode_and_unescape_value(reader)?.to_string()),
+        ),
+        _ => {
+            bail!("either name or http-equiv attr must be set in meta element (but not both)")
+        }
+    };
+
+    Ok(ParsedElement::Meta(MetaAttributes {
+        name,
+        http_equiv,
+        content,
+    }))
 }
 
 fn parse_say_as<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {

@@ -189,7 +189,7 @@ pub enum ParsedElement {
     // TODO: spec mentions `lexicon` can only be immediate children of `speak`. enforce this check
     Lexicon(LexiconAttributes),
     Lookup(LookupAttributes),
-    Meta,
+    Meta(MetaAttributes),
     Metadata,
     Paragraph,
     Sentence,
@@ -225,7 +225,7 @@ impl From<&ParsedElement> for SsmlElement {
             ParsedElement::Speak(_) => Self::Speak,
             ParsedElement::Lexicon(_) => Self::Lexicon,
             ParsedElement::Lookup(_) => Self::Lookup,
-            ParsedElement::Meta => Self::Meta,
+            ParsedElement::Meta(_) => Self::Meta,
             ParsedElement::Metadata => Self::Metadata,
             ParsedElement::Paragraph => Self::Paragraph,
             ParsedElement::Sentence => Self::Sentence,
@@ -420,9 +420,38 @@ pub enum TimeDesignation {
 ///
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LookupAttributes {
     pub lookup_ref: String,
+}
+
+/// The metadata and meta elements are containers in which information about the
+/// document can be placed. The metadata element provides more general and powerful
+/// treatment of metadata information than meta by using a metadata schema.
+///
+/// A meta declaration associates a string to a declared meta property or declares
+/// "http-equiv" content. Either a name or http-equiv attribute is REQUIRED. It is
+/// an error to provide both name and http-equiv attributes. A content attribute is
+/// REQUIRED. The seeAlso property is the only defined meta property name. It is
+/// used to specify a resource that might provide additional metadata information
+/// about the content. This property is modeled on the seeAlso property of Resource
+/// Description Framework (RDF) Schema Specification 1.0 [RDF-SCHEMA §5.4.1]. The
+/// http-equiv attribute has a special significance when documents are retrieved
+/// via HTTP. Although the preferred method of providing HTTP header information is
+/// by using HTTP header fields, the "http-equiv" content MAY be used in situations
+/// where the SSML document author is unable to configure HTTP header fields
+/// associated with their document on the origin server, for example, cache control
+/// information. Note that HTTP servers and caches are not required to introspect
+/// the contents of meta in SSML documents and thereby override the header values
+/// they would send otherwise.
+///
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MetaAttributes {
+    pub name: Option<String>,
+    pub http_equiv: Option<String>,
+    pub content: String,
 }
 
 /// The say-as element allows the author to indicate information on the type of text
