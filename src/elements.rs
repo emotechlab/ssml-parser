@@ -194,7 +194,8 @@ pub enum ParsedElement {
     Paragraph,
     Sentence,
     Token(TokenAttributes),
-    Word,
+    // `w` element is just an alias for `token`
+    Word(TokenAttributes),
     SayAs(SayAsAttributes),
     Phoneme(PhonemeAttributes),
     Sub,
@@ -230,7 +231,7 @@ impl From<&ParsedElement> for SsmlElement {
             ParsedElement::Paragraph => Self::Paragraph,
             ParsedElement::Sentence => Self::Sentence,
             ParsedElement::Token(_) => Self::Token,
-            ParsedElement::Word => Self::Word,
+            ParsedElement::Word(_) => Self::Word,
             ParsedElement::SayAs(_) => Self::SayAs,
             ParsedElement::Phoneme(_) => Self::Phoneme,
             ParsedElement::Sub => Self::Sub,

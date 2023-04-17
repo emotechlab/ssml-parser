@@ -212,7 +212,7 @@ fn parse_element<R: io::BufRead>(
         SsmlElement::Paragraph => ParsedElement::Paragraph,
         SsmlElement::Sentence => ParsedElement::Sentence,
         SsmlElement::Token => parse_token(elem, reader)?,
-        SsmlElement::Word => ParsedElement::Word,
+        SsmlElement::Word => parse_word(elem, reader)?,
         SsmlElement::SayAs => parse_say_as(elem, reader)?,
         SsmlElement::Phoneme => parse_phoneme(elem, reader)?,
         SsmlElement::Sub => ParsedElement::Sub,
@@ -372,6 +372,15 @@ fn parse_token<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
     };
 
     Ok(ParsedElement::Token(TokenAttributes { role }))
+}
+
+fn parse_word<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let role = match elem.try_get_attribute("role")? {
+        Some(attr) => Some(attr.decode_and_unescape_value(reader)?.to_string()),
+        None => None,
+    };
+
+    Ok(ParsedElement::Word(TokenAttributes { role }))
 }
 
 fn parse_say_as<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
