@@ -42,6 +42,7 @@
 use anyhow::bail;
 use std::collections::HashMap;
 use std::convert::Infallible;
+use std::num::NonZeroUsize;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -199,8 +200,8 @@ pub enum ParsedElement {
     SayAs(SayAsAttributes),
     Phoneme(PhonemeAttributes),
     Sub(SubAttributes),
-    Lang,
-    Voice,
+    Lang(LangAttributes),
+    Voice(VoiceAttributes),
     Emphasis(EmphasisAttributes),
     Break(BreakAttributes),
     Prosody(ProsodyAttributes),
@@ -235,8 +236,8 @@ impl From<&ParsedElement> for SsmlElement {
             ParsedElement::SayAs(_) => Self::SayAs,
             ParsedElement::Phoneme(_) => Self::Phoneme,
             ParsedElement::Sub(_) => Self::Sub,
-            ParsedElement::Lang => Self::Lang,
-            ParsedElement::Voice => Self::Voice,
+            ParsedElement::Lang(_) => Self::Lang,
+            ParsedElement::Voice(_) => Self::Voice,
             ParsedElement::Emphasis(_) => Self::Emphasis,
             ParsedElement::Break(_) => Self::Break,
             ParsedElement::Prosody(_) => Self::Prosody,
@@ -252,7 +253,14 @@ impl From<&ParsedElement> for SsmlElement {
 pub struct SpeakAttributes {
     pub lang: Option<String>,
     pub base: Option<String>,
-    pub on_lang_failure: Option<String>, // TODO make into OnLanguageFailure
+    pub on_lang_failure: Option<OnLanguageFailure>,
+}
+
+/// The lang element is used to specify the natural language of the content.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct LangAttributes {
+    pub lang: String,
+    pub on_lang_failure: Option<OnLanguageFailure>,
 }
 
 /// The onlangfailure attribute is an optional attribute that contains one value
@@ -281,7 +289,7 @@ pub enum OnLanguageFailure {
 }
 
 impl FromStr for OnLanguageFailure {
-    type Err = Infallible;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = match s {
@@ -289,7 +297,7 @@ impl FromStr for OnLanguageFailure {
             "ignoretext" => Self::IgnoreText,
             "ignorelang" => Self::IgnoreLang,
             "processorchoice" => Self::ProcessorChoice,
-            _ => todo!(),
+            e => bail!("Unrecognised language failure value {}", e),
         };
         Ok(s)
     }
@@ -607,7 +615,7 @@ impl FromStr for Strength {
             "medium" => Ok(Self::Medium),
             "strong" => Ok(Self::Strong),
             "x-strong" => Ok(Self::ExtraStrong),
-            e => bail!("Unrecognised value {}", e),
+            e => bail!("Unrecognised strength value {}", e),
         }
     }
 }
@@ -1147,4 +1155,210 @@ pub struct EmphasisAttributes {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SubAttributes {
     pub alias: String,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum Gender {
+    Male,
+    Female,
+    Neutral,
+}
+
+impl FromStr for Gender {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "male" => Ok(Self::Male),
+            "female" => Ok(Self::Female),
+            "neutral" => Ok(Self::Neutral),
+            e => bail!("Unrecognised gender value {}", e),
+        }
+    }
+}
+
+/// A language accent pair, this will be a language (required) and an optional accent in which to
+/// speak the language.
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct LanguageAccentPair {
+    pub lang: String,
+    pub accent: Option<String>,
+}
+
+impl FromStr for LanguageAccentPair {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.is_empty() {
+            bail!("Empty language string");
+        } else if s == "und" || s == "zxx" {
+            bail!("Disallowed language code");
+        } else {
+            let lang_accent = s.split(":").collect::<Vec<_>>();
+            if lang_accent.len() > 2 {
+                bail!(
+                    "Invalid format 'language:accent' or 'language' expected for '{}'",
+                    s
+                );
+            }
+            if lang_accent.len() == 1 {
+                Ok(LanguageAccentPair {
+                    lang: lang_accent[0].to_string(),
+                    accent: None,
+                })
+            } else if lang_accent.len() == 2 {
+                Ok(LanguageAccentPair {
+                    lang: lang_accent[0].to_string(),
+                    accent: Some(lang_accent[1].to_string()),
+                })
+            } else {
+                bail!("Unexpected language accent pair: '{}'", s);
+            }
+        }
+    }
+}
+
+/// The voice element is a production element that requests a change in speaking voice. There are
+/// two kinds of attributes for the voice element: those that indicate desired features of a
+/// voice and those that control behavior. The voice feature attributes are:
+///
+/// * **gender**: _optional_ attribute indicating the preferred gender of the voice to speak the
+/// contained text. Enumerated values are: "male", "female", "neutral", or the empty string "".
+/// * **age**: _optional_ attribute indicating the preferred age in years (since birth) of the
+/// voice to speak the contained text. Acceptable values are of type xsd:nonNegativeInteger
+/// [SCHEMA2 §3.3.20] or the empty string "".
+/// * **variant**: _optional_ attribute indicating a preferred variant of the other voice
+/// characteristics to speak the contained text. (e.g. the second male child voice). Valid values of
+/// variant are of type xsd:positiveInteger [SCHEMA2 §3.3.25] or the empty string "".
+/// * **name**: _optional_ attribute indicating a processor-specific voice name to speak the contained
+/// text. The value may be a space-separated list of names ordered from top preference down or the
+/// empty string "". As a result a name must not contain any white space.
+/// * **languages**: _optional_ attribute indicating the list of languages the voice is desired to speak.
+/// The value must be either the empty string "" or a space-separated list of languages, with optional
+/// accent indication per language. Each language/accent pair is of the form "language" or
+/// "language:accent", where both language and accent must be an Extended Language Range
+/// [BCP47, Matching of Language Tags §2.2], except that the values "und" and "zxx" are disallowed.
+/// A voice satisfies the languages feature if, for each language/accent pair in the list,
+///   1. the voice is documented (see Voice descriptions) as reading/speaking a language that
+///   matches the Extended Language Range given by language according to the Extended Filtering
+///   matching algorithm [BCP47, Matching of Language Tags §3.3.2], and
+///   2. if an accent is given, the voice is documented (see Voice descriptions) as
+///   reading/speaking the language above with an accent that matches the Extended Language Range
+///   given by accent according to the Extended Filtering matching algorithm [BCP47, Matching of
+///   Language Tags §3.3.2], except that the script and extension subtags of the accent must be
+///   ignored by the synthesis processor. It is recommended that authors and voice providers do
+///   not use the script or extension subtags for accents because they are not relevant for
+///   speaking.
+///
+/// For example, a languages value of "en:pt fr:ja" can legally be matched by any voice that can
+/// both read English (speaking it with a Portuguese accent) and read French (speaking it with a
+/// Japanese accent). Thus, a voice that only supports "en-US" with a "pt-BR" accent and "fr-CA"
+/// with a "ja" accent would match. As another example, if we have <voice languages="fr:pt"> and
+/// there is no voice that supports French with a Portuguese accent, then a voice selection
+/// failure will occur. Note that if no accent indication is given for a language, then any voice
+/// that speaks the language is acceptable, regardless of accent. Also, note that author control
+/// over language support during voice selection is independent of any value of xml:lang in the
+/// text.
+///
+/// For the feature attributes above, an empty string value indicates that any voice will satisfy
+/// the feature. The top-level default value for all feature attributes is "", the empty string.
+///
+/// The behavior control attributes of voice are:
+///
+/// * **required**: _optional_ attribute that specifies a set of features by their respective
+/// attribute names. This set of features is used by the voice selection algorithm described below.
+/// Valid values of required are a space-separated list composed of values from the list of feature
+/// names: "name", "languages", "gender", "age", "variant" or the empty string "". The default
+/// value for this attribute is "languages".
+/// * **ordering**: _optional_ attribute that specifies the priority ordering of features. Valid
+/// values of ordering are a space-separated list composed of values from the list of feature
+/// names: "name", "languages", "gender", "age", "variant" or the empty string "", where features
+/// named earlier in the list have higher priority . The default value for this attribute is
+/// "languages". Features not listed in the ordering list have equal priority to each other but
+/// lower than that of the last feature in the list. Note that if the ordering attribute is set to
+/// the empty string then all features have the same priority.
+/// * **onvoicefailure**: _optional_ attribute containing one value from the following enumerated
+/// list describing the desired behavior of the synthesis processor upon voice selection failure.
+/// The default value for this attribute is "priorityselect".
+///     * *priorityselect* - the synthesis processor uses the values of all voice feature attributes
+///     to select a voice by feature priority, where the starting candidate set is the set of all
+///     available voices.
+///     * *keepexisting* - the voice does not change.
+///     * *processorchoice* - the synthesis processor chooses the behavior (either priorityselect or
+///     keepexisting).
+///
+/// The following voice selection algorithm must be used:
+///
+/// 1. All available voices are identified for which the values of all voice feature attributes
+/// listed in the required attribute value are matched. When the value of the required attribute is
+/// the empty string "", any and all voices are considered successful matches. If one or more voices
+/// are identified, the selection is considered successful; otherwise there is voice selection
+/// failure.
+/// 2. If a successful selection identifies only one voice, the synthesis processor must use that
+/// voice.
+/// 3. If a successful selection identifies more than one voice, the remaining features (those not
+/// listed in the required attribute value) are used to choose a voice by feature priority, where
+/// the starting candidate set is the set of all voices identified.
+/// 4. If there is voice selection failure, a conforming synthesis processor must report the voice
+/// selection failure in addition to taking the action(s) expressed by the value of the
+/// onvoicefailure attribute.
+/// 5. To choose a voice by feature priority, each feature is taken in turn starting with the
+/// highest priority feature, as controlled by the ordering attribute.
+///     * If at least one voice matches the value of the current voice feature attribute then all
+///     voices not matching that value are removed from the candidate set. If a single voice remains
+///     in the candidate set the synthesis processor must use it. If more than one voice remains in
+///     the candidate set then the next priority feature is examined for the candidate set.
+///     * If no voices match the value of the current voice feature attribute then the next priority
+///     feature is examined for the candidate set.
+/// 6. After examining all feature attributes on the ordering list, if multiple voices remain in
+/// the candidate set, the synthesis processor must use any one of them.
+///
+/// Although each attribute individually is optional, it is an error if no attributes are specified
+/// when the voice element is used.
+///
+/// # Voice descriptions
+/// For every voice made available to a synthesis processor, the vendor of the voice must document the
+/// following:
+///
+/// * a list of language tags [BCP47, Tags for Identifying Languages] representing the languages the
+/// voice can read.
+/// * for each language, a language tag [BCP47, Tags for Identifying Languages] representing the
+/// accent the voice uses when reading the language.
+///
+/// Although indication of language (using xml:lang) and selection of voice (using voice) are
+/// independent, there is no requirement that a synthesis processor support every possible
+/// combination of values of the two. However, a synthesis processor must document expected
+/// rendering behavior for every possible combination. See the onlangfailure attribute for
+/// information on what happens when the processor encounters text content that the voice cannot
+/// speak.
+///
+/// voice attributes are inherited down the tree including to within elements that change the
+/// language. The defaults described for each attribute only apply at the top (document) level and
+/// are overridden by explicit author use of the voice element. In addition, changes in voice are
+/// scoped and apply only to the content of the element in which the change occurred. When
+/// processing reaches the end of a voice element content, i.e. the closing </voice> tag, the voice
+/// in effect before the beginning tag is restored.
+///
+/// Similarly, if a voice is changed by the processor as a result of a language speaking failure,
+/// the prior voice is restored when that voice is again able to speak the content. Note that there
+/// is always an active voice, since the synthesis processor is required to select a default voice
+/// before beginning execution of the document.
+///
+/// Relative changes in prosodic parameters should be carried across voice changes. However,
+/// different voices have different natural defaults for pitch, speaking rate, etc. because they
+/// represent different personalities, so absolute values of the prosodic parameters may vary across
+/// changes in the voice.
+///
+/// The quality of the output audio or voice may suffer if a change in voice is requested within a
+/// sentence.
+///
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+pub struct VoiceAttributes {
+    pub gender: Option<Gender>,
+    pub age: Option<u8>,
+    pub variant: Option<NonZeroUsize>,
+    pub name: Vec<String>,
+    pub languages: Vec<LanguageAccentPair>,
 }
