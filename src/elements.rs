@@ -220,7 +220,7 @@ pub enum ParsedElement {
     Break(BreakAttributes),
     Prosody(ProsodyAttributes),
     Audio,
-    Mark,
+    Mark(MarkAttributes),
     Description(String),
     Custom((String, HashMap<String, String>)),
 }
@@ -256,7 +256,7 @@ impl From<&ParsedElement> for SsmlElement {
             ParsedElement::Break(_) => Self::Break,
             ParsedElement::Prosody(_) => Self::Prosody,
             ParsedElement::Audio => Self::Audio,
-            ParsedElement::Mark => Self::Mark,
+            ParsedElement::Mark(_) => Self::Mark,
             ParsedElement::Description(_) => Self::Description,
             ParsedElement::Custom((s, _)) => Self::Custom(s.to_string()),
         }
@@ -1138,6 +1138,28 @@ pub struct ProsodyAttributes {
     /// it specifies the ratio of the squares of the new signal amplitude (a1) and the current
     /// amplitude (a0), and is defined in terms of dB:
     pub volume: Option<VolumeRange>,
+}
+
+/// A mark element is an empty element that places a marker into the text/tag
+/// sequence. It has one REQUIRED attribute, name, which is of type xsd:token
+/// [SCHEMA2 §3.3.2]. The mark element can be used to reference a specific
+/// location in the text/tag sequence, and can additionally be used to insert a
+/// marker into an output stream for asynchronous notification. When processing
+/// a mark element, a synthesis processor MUST do one or both of the following:
+///  - inform the hosting environment with the value of the name attribute and
+///  with information allowing the platform to retrieve the corresponding position
+///  in the rendered output.
+///  - when audio output of the SSML document reaches the mark, issue an event that
+///  includes the REQUIRED name attribute of the element. The hosting environment
+///  defines the destination of the event.
+///
+/// The mark element does not affect the speech output process.
+///
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MarkAttributes {
+    pub name: String,
 }
 
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),

@@ -223,7 +223,7 @@ fn parse_element<'a>(
         SsmlElement::Break => parse_break(elem, reader)?,
         SsmlElement::Prosody => parse_prosody(elem, reader)?,
         SsmlElement::Audio => ParsedElement::Audio,
-        SsmlElement::Mark => ParsedElement::Mark,
+        SsmlElement::Mark => parse_mark(elem, reader)?,
         SsmlElement::Description => {
             let text = reader
                 .read_text(elem.to_end().name())
@@ -597,6 +597,16 @@ fn parse_duration(duration: &str) -> Result<Duration> {
     }
 }
 
+fn parse_mark<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let name = elem
+        .try_get_attribute("name")?
+        .context("name attribute is required with mark element")?
+        .decode_and_unescape_value(reader)?
+        .to_string();
+
+    Ok(ParsedElement::Mark(MarkAttributes { name }))
+}
+
 fn parse_voice<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
     let gender = elem.try_get_attribute("gender")?;
     let gender = match gender {
@@ -781,6 +791,7 @@ mod tests {
                    "Heads of State often make mistakes when speaking in a foreign language. One of the most well-known examples is that of John F. Kennedy: If you could hear it, this would be a recording of John F. Kennedy speaking in Berlin.");
     }
 
+    #[test]
     fn handle_language_elements() {
         let lang = r#"<speak><lang xml:lang="ja"></lang><lang xml:lang="en" onlangfailure="ignoretext"></lang></speak>"#;
 
