@@ -199,7 +199,7 @@ pub enum ParsedElement {
     SayAs(SayAsAttributes),
     Phoneme(PhonemeAttributes),
     Sub,
-    Lang,
+    Lang(LangAttributes),
     Voice,
     Emphasis(EmphasisAttributes),
     Break(BreakAttributes),
@@ -235,7 +235,7 @@ impl From<&ParsedElement> for SsmlElement {
             ParsedElement::SayAs(_) => Self::SayAs,
             ParsedElement::Phoneme(_) => Self::Phoneme,
             ParsedElement::Sub => Self::Sub,
-            ParsedElement::Lang => Self::Lang,
+            ParsedElement::Lang(_) => Self::Lang,
             ParsedElement::Voice => Self::Voice,
             ParsedElement::Emphasis(_) => Self::Emphasis,
             ParsedElement::Break(_) => Self::Break,
@@ -252,7 +252,14 @@ impl From<&ParsedElement> for SsmlElement {
 pub struct SpeakAttributes {
     pub lang: Option<String>,
     pub base: Option<String>,
-    pub on_lang_failure: Option<String>, // TODO make into OnLanguageFailure
+    pub on_lang_failure: Option<OnLanguageFailure>,
+}
+
+/// The lang element is used to specify the natural language of the content.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct LangAttributes {
+    pub lang: String,
+    pub on_lang_failure: Option<OnLanguageFailure>,
 }
 
 /// The onlangfailure attribute is an optional attribute that contains one value
@@ -281,7 +288,7 @@ pub enum OnLanguageFailure {
 }
 
 impl FromStr for OnLanguageFailure {
-    type Err = Infallible;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = match s {
@@ -289,7 +296,7 @@ impl FromStr for OnLanguageFailure {
             "ignoretext" => Self::IgnoreText,
             "ignorelang" => Self::IgnoreLang,
             "processorchoice" => Self::ProcessorChoice,
-            _ => todo!(),
+            e => bail!("Unrecognised language failure value {}", e),
         };
         Ok(s)
     }
@@ -607,7 +614,7 @@ impl FromStr for Strength {
             "medium" => Ok(Self::Medium),
             "strong" => Ok(Self::Strong),
             "x-strong" => Ok(Self::ExtraStrong),
-            e => bail!("Unrecognised value {}", e),
+            e => bail!("Unrecognised strength value {}", e),
         }
     }
 }
