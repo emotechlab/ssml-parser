@@ -130,7 +130,7 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                         // Need to add in a space as they're using tags instead
                         text_buffer.push(' ');
                     }
-                    let (ty, element) = parse_element(e, &reader)?;
+                    let (ty, element) = parse_element(e, &mut reader)?;
                     let new_span = Span {
                         start: text_buffer.chars().count(),
                         end: text_buffer.chars().count(),
@@ -179,7 +179,7 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                 }
             }
             Event::Empty(e) => {
-                let (_, element) = parse_element(e, &reader)?;
+                let (_, element) = parse_element(e, &mut reader)?;
                 let span = Span {
                     start: text_buffer.chars().count(),
                     end: text_buffer.chars().count(),
@@ -196,9 +196,9 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
     })
 }
 
-fn parse_element<R: io::BufRead>(
+fn parse_element<'a>(
     elem: BytesStart,
-    reader: &Reader<R>,
+    reader: &mut Reader<&'a [u8]>,
 ) -> Result<(SsmlElement, ParsedElement)> {
     let local_name = elem.local_name();
     let name = from_utf8(local_name.as_ref())?;
@@ -224,7 +224,13 @@ fn parse_element<R: io::BufRead>(
         SsmlElement::Prosody => parse_prosody(elem, reader)?,
         SsmlElement::Audio => ParsedElement::Audio,
         SsmlElement::Mark => ParsedElement::Mark,
-        SsmlElement::Description => ParsedElement::Description,
+        SsmlElement::Description => {
+            let text = reader
+                .read_text(elem.to_end().name())
+                .unwrap_or_default()
+                .to_string();
+            ParsedElement::Description(text)
+        }
         SsmlElement::Custom(ref s) => {
             let mut attributes = HashMap::new();
             for attr in elem.attributes() {
@@ -752,6 +758,29 @@ mod tests {
     }
 
     #[test]
+    fn skip_description_text() {
+        let text = r#"<?xml version="1.0"?>
+<speak version="1.1" xmlns="http://www.w3.org/2001/10/synthesis"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.w3.org/2001/10/synthesis
+                 http://www.w3.org/TR/speech-synthesis11/synthesis.xsd"
+       xml:lang="en-US">
+                 
+  <!-- Normal use of <desc> -->
+  Heads of State often make mistakes when speaking in a foreign language.
+  One of the most well-known examples is that of John F. Kennedy:
+  <audio src="ichbineinberliner.wav">If you could hear it, this would be
+  a recording of John F. Kennedy speaking in Berlin.
+    <desc>Kennedy's famous German language gaffe</desc>
+  </audio>
+</speak>"#;
+
+        let res = parse_ssml(&text).unwrap();
+
+        assert_eq!(res.get_text().trim(),
+                   "Heads of State often make mistakes when speaking in a foreign language. One of the most well-known examples is that of John F. Kennedy: If you could hear it, this would be a recording of John F. Kennedy speaking in Berlin.");
+    }
+    
     fn handle_language_elements() {
         let lang = r#"<speak><lang xml:lang="ja"></lang><lang xml:lang="en" onlangfailure="ignoretext"></lang></speak>"#;
 

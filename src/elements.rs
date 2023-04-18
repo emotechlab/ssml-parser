@@ -182,6 +182,20 @@ impl SsmlElement {
                 | Self::Custom(_)
         )
     }
+
+    /// Returns true if the text inside should be processed by the speech synthesiser.
+    #[inline(always)]
+    pub(crate) fn contains_synthesisable_text(&self) -> bool {
+        !matches!(
+            self,
+            Self::Description
+                | Self::Metadata
+                | Self::Mark
+                | Self::Break
+                | Self::Lexicon
+                | Self::Meta
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -207,7 +221,7 @@ pub enum ParsedElement {
     Prosody(ProsodyAttributes),
     Audio,
     Mark,
-    Description,
+    Description(String),
     Custom((String, HashMap<String, String>)),
 }
 
@@ -243,7 +257,7 @@ impl From<&ParsedElement> for SsmlElement {
             ParsedElement::Prosody(_) => Self::Prosody,
             ParsedElement::Audio => Self::Audio,
             ParsedElement::Mark => Self::Mark,
-            ParsedElement::Description => Self::Description,
+            ParsedElement::Description(_) => Self::Description,
             ParsedElement::Custom((s, _)) => Self::Custom(s.to_string()),
         }
     }
@@ -327,7 +341,7 @@ impl FromStr for SsmlElement {
             "prosody" => Self::Prosody,
             "audio" => Self::Audio,
             "mark" => Self::Mark,
-            "description" => Self::Description,
+            "desc" => Self::Description,
             e => Self::Custom(e.to_string()),
         };
         Ok(s)
