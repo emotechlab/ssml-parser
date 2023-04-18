@@ -1,11 +1,15 @@
 use crate::elements::*;
 use crate::*;
 use anyhow::{bail, Context, Result};
+use lazy_static::lazy_static;
+use mediatype::MediaTypeBuf;
 use quick_xml::events::{BytesStart, BytesText, Event};
 use quick_xml::reader::Reader;
+use regex::Regex;
 use std::cmp::{Ord, Ordering};
 use std::collections::HashMap;
 use std::io;
+use std::num::NonZeroUsize;
 use std::str::from_utf8;
 use std::str::FromStr;
 use std::time::Duration;
@@ -126,7 +130,7 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                         // Need to add in a space as they're using tags instead
                         text_buffer.push(' ');
                     }
-                    let (ty, element) = parse_element(e, &reader)?;
+                    let (ty, element) = parse_element(e, &mut reader)?;
                     let new_span = Span {
                         start: text_buffer.chars().count(),
                         end: text_buffer.chars().count(),
@@ -175,7 +179,7 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                 }
             }
             Event::Empty(e) => {
-                let (ty, element) = parse_element(e, &reader)?;
+                let (_, element) = parse_element(e, &mut reader)?;
                 let span = Span {
                     start: text_buffer.chars().count(),
                     end: text_buffer.chars().count(),
@@ -192,9 +196,9 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
     })
 }
 
-fn parse_element<R: io::BufRead>(
+fn parse_element<'a>(
     elem: BytesStart,
-    reader: &Reader<R>,
+    reader: &mut Reader<&'a [u8]>,
 ) -> Result<(SsmlElement, ParsedElement)> {
     let local_name = elem.local_name();
     let name = from_utf8(local_name.as_ref())?;
@@ -202,25 +206,31 @@ fn parse_element<R: io::BufRead>(
 
     let res = match elem_type {
         SsmlElement::Speak => parse_speak(elem, reader)?,
-        SsmlElement::Lexicon => ParsedElement::Lexicon,
-        SsmlElement::Lookup => ParsedElement::Lookup,
-        SsmlElement::Meta => ParsedElement::Meta,
+        SsmlElement::Lexicon => parse_lexicon(elem, reader)?,
+        SsmlElement::Lookup => parse_lookup(elem, reader)?,
+        SsmlElement::Meta => parse_meta(elem, reader)?,
         SsmlElement::Metadata => ParsedElement::Metadata,
         SsmlElement::Paragraph => ParsedElement::Paragraph,
         SsmlElement::Sentence => ParsedElement::Sentence,
-        SsmlElement::Token => ParsedElement::Token,
-        SsmlElement::Word => ParsedElement::Word,
+        SsmlElement::Token => parse_token(elem, reader)?,
+        SsmlElement::Word => parse_word(elem, reader)?,
         SsmlElement::SayAs => parse_say_as(elem, reader)?,
         SsmlElement::Phoneme => parse_phoneme(elem, reader)?,
-        SsmlElement::Sub => ParsedElement::Sub,
-        SsmlElement::Lang => ParsedElement::Lang,
-        SsmlElement::Voice => ParsedElement::Voice,
+        SsmlElement::Sub => parse_sub(elem, reader)?,
+        SsmlElement::Lang => parse_language(elem, reader)?,
+        SsmlElement::Voice => parse_voice(elem, reader)?,
         SsmlElement::Emphasis => parse_emphasis(elem, reader)?,
         SsmlElement::Break => parse_break(elem, reader)?,
         SsmlElement::Prosody => parse_prosody(elem, reader)?,
-        SsmlElement::Audio => ParsedElement::Audio,
-        SsmlElement::Mark => ParsedElement::Mark,
-        SsmlElement::Description => ParsedElement::Description,
+        SsmlElement::Audio => parse_audio(elem, reader)?,
+        SsmlElement::Mark => parse_mark(elem, reader)?,
+        SsmlElement::Description => {
+            let text = reader
+                .read_text(elem.to_end().name())
+                .unwrap_or_default()
+                .to_string();
+            ParsedElement::Description(text)
+        }
         SsmlElement::Custom(ref s) => {
             let mut attributes = HashMap::new();
             for attr in elem.attributes() {
@@ -254,7 +264,8 @@ fn parse_speak<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
     };
     let on_lang_failure = elem.try_get_attribute("nolangfailure")?;
     let on_lang_failure = if let Some(lang) = on_lang_failure {
-        Some(lang.decode_and_unescape_value(reader)?.to_string())
+        let value = lang.decode_and_unescape_value(reader)?;
+        Some(OnLanguageFailure::from_str(&value)?)
     } else {
         None
     };
@@ -263,6 +274,106 @@ fn parse_speak<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
         base,
         on_lang_failure,
     }))
+}
+
+fn parse_lexicon<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let xml_id = elem
+        .try_get_attribute("xml:id")?
+        .context("xml:id attribute is required with a lexicon element")?
+        .decode_and_unescape_value(reader)?
+        .to_string();
+
+    let uri: http::Uri = elem
+        .try_get_attribute("uri")?
+        .context("uri attribute is required with a lexicon element")?
+        .decode_and_unescape_value(reader)?
+        .to_string()
+        .parse()?;
+
+    let fetch_timeout = match elem.try_get_attribute("fetchtimeout")? {
+        Some(fetchtimeout) => {
+            let fetchtimeout = fetchtimeout.decode_and_unescape_value(reader)?;
+            Some(TimeDesignation::from_str(&fetchtimeout)?)
+        }
+        None => None,
+    };
+
+    let ty = match elem.try_get_attribute("type")? {
+        Some(ty) => {
+            let ty = ty.decode_and_unescape_value(reader)?.to_string();
+            let ty = MediaTypeBuf::from_string(ty)
+                .context("invalid media type for type attribute of lexicon element")?;
+
+            Some(ty)
+        }
+        None => None,
+    };
+
+    Ok(ParsedElement::Lexicon(LexiconAttributes {
+        uri,
+        xml_id,
+        fetch_timeout,
+        ty,
+    }))
+}
+
+fn parse_lookup<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let lookup_ref = elem
+        .try_get_attribute("ref")?
+        .context("ref attribute is required with a lookup element")?
+        .decode_and_unescape_value(reader)?
+        .to_string();
+
+    Ok(ParsedElement::Lookup(LookupAttributes { lookup_ref }))
+}
+
+fn parse_meta<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let content = elem
+        .try_get_attribute("content")?
+        .context("content attribute is required with a meta element")?
+        .decode_and_unescape_value(reader)?
+        .to_string();
+
+    let name = elem.try_get_attribute("name")?;
+    let http_equiv = elem.try_get_attribute("http-equiv")?;
+
+    let (name, http_equiv) = match (name, http_equiv) {
+        (Some(name), None) => (
+            Some(name.decode_and_unescape_value(reader)?.to_string()),
+            None,
+        ),
+        (None, Some(http_equiv)) => (
+            None,
+            Some(http_equiv.decode_and_unescape_value(reader)?.to_string()),
+        ),
+        _ => {
+            bail!("either name or http-equiv attr must be set in meta element (but not both)")
+        }
+    };
+
+    Ok(ParsedElement::Meta(MetaAttributes {
+        name,
+        http_equiv,
+        content,
+    }))
+}
+
+fn parse_token<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let role = match elem.try_get_attribute("role")? {
+        Some(attr) => Some(attr.decode_and_unescape_value(reader)?.to_string()),
+        None => None,
+    };
+
+    Ok(ParsedElement::Token(TokenAttributes { role }))
+}
+
+fn parse_word<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let role = match elem.try_get_attribute("role")? {
+        Some(attr) => Some(attr.decode_and_unescape_value(reader)?.to_string()),
+        None => None,
+    };
+
+    Ok(ParsedElement::Word(TokenAttributes { role }))
 }
 
 fn parse_say_as<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
@@ -332,6 +443,37 @@ fn parse_break<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
     };
 
     Ok(ParsedElement::Break(BreakAttributes { strength, time }))
+}
+
+fn parse_sub<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let alias = elem
+        .try_get_attribute("alias")?
+        .context("alias attribute required for sub element")?
+        .decode_and_unescape_value(reader)?
+        .to_string();
+
+    Ok(ParsedElement::Sub(SubAttributes { alias }))
+}
+
+fn parse_language<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let lang = elem
+        .try_get_attribute("xml:lang")?
+        .context("xml:lang attribute is required with a lang element")?
+        .decode_and_unescape_value(reader)?
+        .to_string();
+
+    let on_lang_failure = match elem.try_get_attribute("onlangfailure")? {
+        Some(s) => {
+            let value = s.decode_and_unescape_value(reader)?;
+            Some(OnLanguageFailure::from_str(&value)?)
+        }
+        None => None,
+    };
+
+    Ok(ParsedElement::Lang(LangAttributes {
+        lang,
+        on_lang_failure,
+    }))
 }
 
 fn parse_emphasis<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
@@ -426,10 +568,6 @@ fn parse_prosody<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result
     }))
 }
 
-fn parse_paragraph<R: io::BufRead>(reader: &mut Reader<R>) -> Result<()> {
-    todo!()
-}
-
 fn parse_duration(duration: &str) -> Result<Duration> {
     if duration.ends_with("ms") && duration.len() > 2 {
         let time = &duration[0..(duration.len() - 2)].parse::<f32>()?;
@@ -442,6 +580,209 @@ fn parse_duration(duration: &str) -> Result<Duration> {
     } else {
         bail!("invalid time: '{}'", duration);
     }
+}
+
+fn parse_mark<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let name = elem
+        .try_get_attribute("name")?
+        .context("name attribute is required with mark element")?
+        .decode_and_unescape_value(reader)?
+        .to_string();
+
+    Ok(ParsedElement::Mark(MarkAttributes { name }))
+}
+
+fn parse_voice<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let gender = elem.try_get_attribute("gender")?;
+    let gender = match gender {
+        Some(v) => {
+            let value = v.decode_and_unescape_value(reader)?;
+            if value.is_empty() {
+                None
+            } else {
+                Some(Gender::from_str(&value)?)
+            }
+        }
+        None => None,
+    };
+    let age = elem.try_get_attribute("age")?;
+    let age = match age {
+        Some(v) => {
+            let value = v.decode_and_unescape_value(reader)?;
+            if value.is_empty() {
+                None
+            } else {
+                Some(value.parse::<u8>()?)
+            }
+        }
+        None => None,
+    };
+    let variant = elem.try_get_attribute("variant")?;
+    let variant = match variant {
+        Some(v) => {
+            let value = v.decode_and_unescape_value(reader)?;
+            if value.is_empty() {
+                None
+            } else {
+                Some(value.parse::<NonZeroUsize>()?)
+            }
+        }
+        None => None,
+    };
+    let name = elem.try_get_attribute("name")?;
+    let name = match name {
+        Some(v) => {
+            let value = v.decode_and_unescape_value(reader)?;
+            value
+                .split(" ")
+                .map(|x| x.to_string())
+                .collect::<Vec<String>>()
+        }
+        None => vec![],
+    };
+    let languages = elem.try_get_attribute("languages")?;
+    let languages = match languages {
+        Some(v) => {
+            let value = v.decode_and_unescape_value(reader)?;
+            let mut res = vec![];
+            for language in value.split(" ") {
+                res.push(LanguageAccentPair::from_str(language)?);
+            }
+            res
+        }
+        None => vec![],
+    };
+    Ok(ParsedElement::Voice(VoiceAttributes {
+        gender,
+        age,
+        variant,
+        name,
+        languages,
+    }))
+}
+
+fn parse_audio<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let src = match elem.try_get_attribute("src")? {
+        Some(s) => {
+            let src: http::Uri = s.decode_and_unescape_value(reader)?.to_string().parse()?;
+            Some(src)
+        }
+        None => None,
+    };
+
+    let fetch_timeout = match elem.try_get_attribute("fetchtimeout")? {
+        Some(fetchtimeout) => {
+            let fetchtimeout = fetchtimeout.decode_and_unescape_value(reader)?;
+            Some(TimeDesignation::from_str(&fetchtimeout)?)
+        }
+        None => None,
+    };
+
+    let fetch_hint = match elem.try_get_attribute("fetchhint")? {
+        Some(fetch) => {
+            let fetch = fetch.decode_and_unescape_value(reader)?;
+            FetchHint::from_str(&fetch)?
+        }
+        None => FetchHint::default(),
+    };
+
+    let max_age = if let Some(v) = elem.try_get_attribute("maxage")? {
+        Some(v.decode_and_unescape_value(reader)?.parse::<usize>()?)
+    } else {
+        None
+    };
+
+    let max_stale = if let Some(v) = elem.try_get_attribute("maxage")? {
+        Some(v.decode_and_unescape_value(reader)?.parse::<usize>()?)
+    } else {
+        None
+    };
+
+    let clip_begin = match elem.try_get_attribute("clipBegin")? {
+        Some(clip) => {
+            let clip = clip.decode_and_unescape_value(reader)?;
+            TimeDesignation::from_str(&clip)?
+        }
+        None => TimeDesignation::Seconds(0.0),
+    };
+
+    let clip_end = match elem.try_get_attribute("clipBegin")? {
+        Some(clip) => {
+            let clip = clip.decode_and_unescape_value(reader)?;
+            Some(TimeDesignation::from_str(&clip)?)
+        }
+        None => None,
+    };
+
+    let repeat_count = if let Some(v) = elem.try_get_attribute("repeatCount")? {
+        v.decode_and_unescape_value(reader)?
+            .parse::<NonZeroUsize>()?
+    } else {
+        unsafe { NonZeroUsize::new_unchecked(1) }
+    };
+
+    let repeat_dur = match elem.try_get_attribute("repeatDur")? {
+        Some(repeat) => {
+            let repeat = repeat.decode_and_unescape_value(reader)?;
+            Some(TimeDesignation::from_str(&repeat)?)
+        }
+        None => None,
+    };
+
+    let sound_level = match elem.try_get_attribute("soundLevel")? {
+        Some(sound) => {
+            let sound = sound.decode_and_unescape_value(reader)?;
+            parse_decibel(&sound)?
+        }
+        None => 0.0,
+    };
+
+    let speed = match elem.try_get_attribute("speed")? {
+        Some(speed) => {
+            let speed = speed.decode_and_unescape_value(reader)?;
+            parse_unsigned_percentage(&speed)? / 100.0
+        }
+        None => 1.0,
+    };
+
+    Ok(ParsedElement::Audio(AudioAttributes {
+        src,
+        fetch_timeout,
+        fetch_hint,
+        max_age,
+        max_stale,
+        clip_begin,
+        clip_end,
+        repeat_count,
+        repeat_dur,
+        sound_level,
+        speed,
+    }))
+}
+
+pub(crate) fn parse_decibel(val: &str) -> anyhow::Result<f32> {
+    lazy_static! {
+        static ref DB_RE: Regex = Regex::new(r"^[+-]?((?:\d*\.)?\d)+dB$").unwrap();
+    }
+    let caps = DB_RE
+        .captures(&val)
+        .context("value must be a valid decibel value")?;
+
+    let num_val = (&caps[1]).parse::<f32>()?;
+    Ok(num_val)
+}
+
+/// returns percentages as written
+pub(crate) fn parse_unsigned_percentage(val: &str) -> anyhow::Result<f32> {
+    lazy_static! {
+        static ref PERCENT_RE: Regex = Regex::new(r"^+?((?:\d*\.)?\d)+%$").unwrap();
+    }
+    let caps = PERCENT_RE
+        .captures(&val)
+        .context("value must be a valid percentage value")?;
+
+    let num_val = (&caps[1]).parse::<f32>()?;
+    Ok(num_val)
 }
 
 #[cfg(test)]
@@ -533,5 +874,56 @@ mod tests {
     fn reject_invalid_combos() {
         assert!(parse_ssml("<speak><speak>hello</speak></speak>").is_err());
         assert!(parse_ssml("<speak><p>hello<p>world</p></p></speak>").is_err());
+    }
+
+    #[test]
+    fn skip_description_text() {
+        let text = r#"<?xml version="1.0"?>
+<speak version="1.1" xmlns="http://www.w3.org/2001/10/synthesis"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.w3.org/2001/10/synthesis
+                 http://www.w3.org/TR/speech-synthesis11/synthesis.xsd"
+       xml:lang="en-US">
+                 
+  <!-- Normal use of <desc> -->
+  Heads of State often make mistakes when speaking in a foreign language.
+  One of the most well-known examples is that of John F. Kennedy:
+  <audio src="ichbineinberliner.wav">If you could hear it, this would be
+  a recording of John F. Kennedy speaking in Berlin.
+    <desc>Kennedy's famous German language gaffe</desc>
+  </audio>
+</speak>"#;
+
+        let res = parse_ssml(&text).unwrap();
+
+        assert_eq!(res.get_text().trim(),
+                   "Heads of State often make mistakes when speaking in a foreign language. One of the most well-known examples is that of John F. Kennedy: If you could hear it, this would be a recording of John F. Kennedy speaking in Berlin.");
+    }
+
+    #[test]
+    fn handle_language_elements() {
+        let lang = r#"<speak><lang xml:lang="ja"></lang><lang xml:lang="en" onlangfailure="ignoretext"></lang></speak>"#;
+
+        let res = parse_ssml(lang).unwrap();
+
+        assert_eq!(res.tags.len(), 3);
+        assert_eq!(
+            res.tags[1].element,
+            ParsedElement::Lang(LangAttributes {
+                lang: "ja".to_string(),
+                on_lang_failure: None
+            })
+        );
+        assert_eq!(
+            res.tags[2].element,
+            ParsedElement::Lang(LangAttributes {
+                lang: "en".to_string(),
+                on_lang_failure: Some(OnLanguageFailure::IgnoreText)
+            })
+        );
+
+        let lang = r#"<speak><lang lang="ja"></lang></speak>"#;
+
+        assert!(parse_ssml(lang).is_err());
     }
 }
