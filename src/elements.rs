@@ -39,7 +39,9 @@
 // The token element can only be contained in the following elements: audio, emphasis, lang, lookup, prosody, speak, p, s, voice.
 //
 // The say-as element has three attributes: interpret-as, format, and detail. The interpret-as attribute is always required; the other two attributes are optional. The legal values for the format attribute depend on the value of the interpret-as attribute.
-use anyhow::bail;
+use anyhow::{bail, Context};
+use lazy_static::lazy_static;
+use regex::Regex;
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::num::NonZeroUsize;
@@ -219,7 +221,7 @@ pub enum ParsedElement {
     Emphasis(EmphasisAttributes),
     Break(BreakAttributes),
     Prosody(ProsodyAttributes),
-    Audio,
+    Audio(AudioAttributes),
     Mark(MarkAttributes),
     Description(String),
     Custom((String, HashMap<String, String>)),
@@ -255,7 +257,7 @@ impl From<&ParsedElement> for SsmlElement {
             ParsedElement::Emphasis(_) => Self::Emphasis,
             ParsedElement::Break(_) => Self::Break,
             ParsedElement::Prosody(_) => Self::Prosody,
-            ParsedElement::Audio => Self::Audio,
+            ParsedElement::Audio(_) => Self::Audio,
             ParsedElement::Mark(_) => Self::Mark,
             ParsedElement::Description(_) => Self::Description,
             ParsedElement::Custom((s, _)) => Self::Custom(s.to_string()),
@@ -400,13 +402,34 @@ pub struct LexiconAttributes {
     pub uri: http::Uri,
     pub xml_id: String,
     pub ty: Option<mediatype::MediaTypeBuf>,
-    pub fetchtimeout: Option<TimeDesignation>,
+    pub fetch_timeout: Option<TimeDesignation>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum TimeDesignation {
     Seconds(f32),
     Milliseconds(f32),
+}
+
+impl FromStr for TimeDesignation {
+    type Err = anyhow::Error;
+
+    fn from_str(time: &str) -> Result<Self, Self::Err> {
+        lazy_static! {
+            static ref TIME_RE: Regex = Regex::new(r"^\+?((?:\d*\.)?\d)+(s|ms)$").unwrap();
+        }
+        let caps = TIME_RE
+            .captures(&time)
+            .context("attribute must be a valid TimeDesignation")?;
+
+        let num_val = (&caps[1]).parse::<f32>().unwrap();
+
+        match &caps[2] {
+            "s" => Ok(TimeDesignation::Seconds(num_val)),
+            "ms" => Ok(TimeDesignation::Milliseconds(num_val)),
+            _ => unreachable!(),
+        }
+    }
 }
 
 /// The lookup element MUST have a ref attribute. The ref attribute specifies a
@@ -1397,4 +1420,78 @@ pub struct VoiceAttributes {
     pub variant: Option<NonZeroUsize>,
     pub name: Vec<String>,
     pub languages: Vec<LanguageAccentPair>,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+pub enum FetchHint {
+    Prefetch,
+    Safe,
+}
+
+impl FromStr for FetchHint {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = match s {
+            "prefetch" => Self::Prefetch,
+            "safe" => Self::Safe,
+            e => bail!("Unrecognised fetchhint {}", e),
+        };
+        Ok(s)
+    }
+}
+
+impl Default for FetchHint {
+    fn default() -> Self {
+        Self::Prefetch
+    }
+}
+
+/// The audio element supports the insertion of recorded audio files and the insertion of other
+/// audio formats in conjunction with synthesized speech output. The audio element may be empty.
+/// If the audio element is not empty then the contents should be the marked-up text to be spoken if the audio document is not available. The alternate content may include text, speech markup, desc elements, or other audio elements. The alternate content may also be used when rendering the document to non-audible output and for accessibility (see the desc element).
+///
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
+#[derive(Clone, Debug, PartialEq)]
+pub struct AudioAttributes {
+    /// The URI of a document with an appropriate media type. If absent, the audio element behaves
+    /// as if src were present with a legal URI but the document could not be fetched.
+    pub src: Option<http::Uri>,
+    /// The timeout for fetches.
+    pub fetch_timeout: Option<TimeDesignation>,
+    /// This tells the synthesis processor whether or not it can attempt to optimize rendering by
+    /// pre-fetching audio. The value is either safe to say that audio is only fetched when it is
+    /// needed, never before; or prefetch to permit, but not require the processor to pre-fetch the
+    /// audio.
+    pub fetch_hint: FetchHint,
+    /// Indicates that the document is willing to use content whose age is no greater than the
+    /// specified time (cf. 'max-age' in HTTP 1.1). The document is not willing to use
+    /// stale content, unless maxstale is also provided.
+    pub max_age: Option<usize>,
+    /// Indicates that the document is willing to use content that has exceeded its expiration time
+    /// (cf. 'max-stale' in HTTP 1.1). If maxstale is assigned a value, then the document is willing
+    /// to accept content that has exceeded its expiration time by no more than the specified amount
+    /// of time.
+    pub max_stale: Option<usize>,
+
+    // Trimming attributes
+    /// offset from start of media to begin rendering. This offset is measured in normal media
+    /// playback time from the beginning of the media.
+    pub clip_begin: TimeDesignation,
+    /// offset from start of media to end rendering. This offset is measured in normal media
+    /// playback time from the beginning of the media.
+    pub clip_end: Option<TimeDesignation>,
+    /// number of iterations of media to render. A fractional value describes a portion of the
+    /// rendered media.
+    pub repeat_count: NonZeroUsize,
+    /// total duration for repeatedly rendering media. This duration is measured in normal media
+    /// playback time from the beginning of the media.
+    pub repeat_dur: Option<TimeDesignation>,
+
+    /// Sound level in decibels
+    pub sound_level: f32,
+
+    /// Speed in a percentage where 1.0 corresponds to 100%
+    pub speed: f32,
 }

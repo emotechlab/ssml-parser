@@ -222,7 +222,7 @@ fn parse_element<'a>(
         SsmlElement::Emphasis => parse_emphasis(elem, reader)?,
         SsmlElement::Break => parse_break(elem, reader)?,
         SsmlElement::Prosody => parse_prosody(elem, reader)?,
-        SsmlElement::Audio => ParsedElement::Audio,
+        SsmlElement::Audio => parse_audio(elem, reader)?,
         SsmlElement::Mark => parse_mark(elem, reader)?,
         SsmlElement::Description => {
             let text = reader
@@ -290,25 +290,10 @@ fn parse_lexicon<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result
         .to_string()
         .parse()?;
 
-    lazy_static! {
-        static ref TIME_RE: Regex = Regex::new(r"^\+?((?:\d*\.)?\d)+(s|ms)$").unwrap();
-    }
-
-    let fetchtimeout = match elem.try_get_attribute("fetchtimeout")? {
+    let fetch_timeout = match elem.try_get_attribute("fetchtimeout")? {
         Some(fetchtimeout) => {
             let fetchtimeout = fetchtimeout.decode_and_unescape_value(reader)?;
-
-            let caps = TIME_RE
-                .captures(&fetchtimeout)
-                .context("fetchtimeout attribute must be a valid TimeDesignation")?;
-
-            let num_val = (&caps[1]).parse::<f32>().unwrap();
-
-            match &caps[2] {
-                "s" => Some(TimeDesignation::Seconds(num_val)),
-                "ms" => Some(TimeDesignation::Milliseconds(num_val)),
-                _ => unreachable!(),
-            }
+            Some(TimeDesignation::from_str(&fetchtimeout)?)
         }
         None => None,
     };
@@ -327,7 +312,7 @@ fn parse_lexicon<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result
     Ok(ParsedElement::Lexicon(LexiconAttributes {
         uri,
         xml_id,
-        fetchtimeout,
+        fetch_timeout,
         ty,
     }))
 }
@@ -674,6 +659,130 @@ fn parse_voice<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
         name,
         languages,
     }))
+}
+
+fn parse_audio<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let src = match elem.try_get_attribute("src")? {
+        Some(s) => {
+            let src: http::Uri = s.decode_and_unescape_value(reader)?.to_string().parse()?;
+            Some(src)
+        }
+        None => None,
+    };
+
+    let fetch_timeout = match elem.try_get_attribute("fetchtimeout")? {
+        Some(fetchtimeout) => {
+            let fetchtimeout = fetchtimeout.decode_and_unescape_value(reader)?;
+            Some(TimeDesignation::from_str(&fetchtimeout)?)
+        }
+        None => None,
+    };
+
+    let fetch_hint = match elem.try_get_attribute("fetchhint")? {
+        Some(fetch) => {
+            let fetch = fetch.decode_and_unescape_value(reader)?;
+            FetchHint::from_str(&fetch)?
+        }
+        None => FetchHint::default(),
+    };
+
+    let max_age = if let Some(v) = elem.try_get_attribute("maxage")? {
+        Some(v.decode_and_unescape_value(reader)?.parse::<usize>()?)
+    } else {
+        None
+    };
+
+    let max_stale = if let Some(v) = elem.try_get_attribute("maxage")? {
+        Some(v.decode_and_unescape_value(reader)?.parse::<usize>()?)
+    } else {
+        None
+    };
+
+    let clip_begin = match elem.try_get_attribute("clipBegin")? {
+        Some(clip) => {
+            let clip = clip.decode_and_unescape_value(reader)?;
+            TimeDesignation::from_str(&clip)?
+        }
+        None => TimeDesignation::Seconds(0.0),
+    };
+
+    let clip_end = match elem.try_get_attribute("clipBegin")? {
+        Some(clip) => {
+            let clip = clip.decode_and_unescape_value(reader)?;
+            Some(TimeDesignation::from_str(&clip)?)
+        }
+        None => None,
+    };
+
+    let repeat_count = if let Some(v) = elem.try_get_attribute("repeatCount")? {
+        v.decode_and_unescape_value(reader)?
+            .parse::<NonZeroUsize>()?
+    } else {
+        unsafe { NonZeroUsize::new_unchecked(1) }
+    };
+
+    let repeat_dur = match elem.try_get_attribute("repeatDur")? {
+        Some(repeat) => {
+            let repeat = repeat.decode_and_unescape_value(reader)?;
+            Some(TimeDesignation::from_str(&repeat)?)
+        }
+        None => None,
+    };
+
+    let sound_level = match elem.try_get_attribute("soundLevel")? {
+        Some(sound) => {
+            let sound = sound.decode_and_unescape_value(reader)?;
+            parse_decibel(&sound)?
+        }
+        None => 0.0,
+    };
+
+    let speed = match elem.try_get_attribute("speed")? {
+        Some(speed) => {
+            let speed = speed.decode_and_unescape_value(reader)?;
+            parse_unsigned_percentage(&speed)? / 100.0
+        }
+        None => 1.0,
+    };
+
+    Ok(ParsedElement::Audio(AudioAttributes {
+        src,
+        fetch_timeout,
+        fetch_hint,
+        max_age,
+        max_stale,
+        clip_begin,
+        clip_end,
+        repeat_count,
+        repeat_dur,
+        sound_level,
+        speed,
+    }))
+}
+
+pub(crate) fn parse_decibel(val: &str) -> anyhow::Result<f32> {
+    lazy_static! {
+        static ref DB_RE: Regex = Regex::new(r"^[+-]?((?:\d*\.)?\d)+dB$").unwrap();
+    }
+    let caps = DB_RE
+        .captures(&val)
+        .context("value must be a valid decibel value")?;
+
+    let num_val = (&caps[1]).parse::<f32>()?;
+    Ok(num_val)
+}
+
+/// returns percentages as written
+pub(crate) fn parse_unsigned_percentage(val: &str) -> anyhow::Result<f32> {
+    lazy_static! {
+        static ref PERCENT_RE: Regex = Regex::new(r"^+?((?:\d*\.)?\d)+%$").unwrap();
+    }
+    let caps = PERCENT_RE
+        .captures(&val)
+        .context("value must be a valid percentage value")?;
+
+    let num_val = (&caps[1]).parse::<f32>()?;
+    Ok(num_val)
 }
 
 #[cfg(test)]
