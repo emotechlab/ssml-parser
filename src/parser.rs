@@ -780,7 +780,7 @@ mod tests {
         assert_eq!(res.get_text().trim(),
                    "Heads of State often make mistakes when speaking in a foreign language. One of the most well-known examples is that of John F. Kennedy: If you could hear it, this would be a recording of John F. Kennedy speaking in Berlin.");
     }
-    
+
     fn handle_language_elements() {
         let lang = r#"<speak><lang xml:lang="ja"></lang><lang xml:lang="en" onlangfailure="ignoretext"></lang></speak>"#;
 
