@@ -9,6 +9,7 @@ use regex::Regex;
 use std::cmp::{Ord, Ordering};
 use std::collections::HashMap;
 use std::io;
+use std::num::NonZeroUsize;
 use std::str::from_utf8;
 use std::str::FromStr;
 use std::time::Duration;
@@ -217,7 +218,7 @@ fn parse_element<R: io::BufRead>(
         SsmlElement::Phoneme => parse_phoneme(elem, reader)?,
         SsmlElement::Sub => ParsedElement::Sub,
         SsmlElement::Lang => parse_language(elem, reader)?,
-        SsmlElement::Voice => ParsedElement::Voice,
+        SsmlElement::Voice => parse_voice(elem, reader)?,
         SsmlElement::Emphasis => parse_emphasis(elem, reader)?,
         SsmlElement::Break => parse_break(elem, reader)?,
         SsmlElement::Prosody => parse_prosody(elem, reader)?,
@@ -578,6 +579,75 @@ fn parse_duration(duration: &str) -> Result<Duration> {
     } else {
         bail!("invalid time: '{}'", duration);
     }
+}
+
+fn parse_voice<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let gender = elem.try_get_attribute("gender")?;
+    let gender = match gender {
+        Some(v) => {
+            let value = v.decode_and_unescape_value(reader)?;
+            if value.is_empty() {
+                None
+            } else {
+                Some(Gender::from_str(&value)?)
+            }
+        }
+        None => None,
+    };
+    let age = elem.try_get_attribute("age")?;
+    let age = match age {
+        Some(v) => {
+            let value = v.decode_and_unescape_value(reader)?;
+            if value.is_empty() {
+                None
+            } else {
+                Some(value.parse::<u8>()?)
+            }
+        }
+        None => None,
+    };
+    let variant = elem.try_get_attribute("variant")?;
+    let variant = match variant {
+        Some(v) => {
+            let value = v.decode_and_unescape_value(reader)?;
+            if value.is_empty() {
+                None
+            } else {
+                Some(value.parse::<NonZeroUsize>()?)
+            }
+        }
+        None => None,
+    };
+    let name = elem.try_get_attribute("name")?;
+    let name = match name {
+        Some(v) => {
+            let value = v.decode_and_unescape_value(reader)?;
+            value
+                .split(" ")
+                .map(|x| x.to_string())
+                .collect::<Vec<String>>()
+        }
+        None => vec![],
+    };
+    let languages = elem.try_get_attribute("languages")?;
+    let languages = match languages {
+        Some(v) => {
+            let value = v.decode_and_unescape_value(reader)?;
+            let mut res = vec![];
+            for language in value.split(" ") {
+                res.push(LanguageAccentPair::from_str(language)?);
+            }
+            res
+        }
+        None => vec![],
+    };
+    Ok(ParsedElement::Voice(VoiceAttributes {
+        gender,
+        age,
+        variant,
+        name,
+        languages,
+    }))
 }
 
 #[cfg(test)]
