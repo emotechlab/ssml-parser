@@ -1,8 +1,11 @@
 use crate::elements::*;
 use crate::*;
 use anyhow::{bail, Context, Result};
+use lazy_static::lazy_static;
+use mediatype::MediaTypeBuf;
 use quick_xml::events::{BytesStart, BytesText, Event};
 use quick_xml::reader::Reader;
+use regex::Regex;
 use std::cmp::{Ord, Ordering};
 use std::collections::HashMap;
 use std::io;
@@ -175,7 +178,7 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                 }
             }
             Event::Empty(e) => {
-                let (ty, element) = parse_element(e, &reader)?;
+                let (_, element) = parse_element(e, &reader)?;
                 let span = Span {
                     start: text_buffer.chars().count(),
                     end: text_buffer.chars().count(),
@@ -202,7 +205,7 @@ fn parse_element<R: io::BufRead>(
 
     let res = match elem_type {
         SsmlElement::Speak => parse_speak(elem, reader)?,
-        SsmlElement::Lexicon => ParsedElement::Lexicon,
+        SsmlElement::Lexicon => parse_lexicon(elem, reader)?,
         SsmlElement::Lookup => ParsedElement::Lookup,
         SsmlElement::Meta => ParsedElement::Meta,
         SsmlElement::Metadata => ParsedElement::Metadata,
@@ -262,6 +265,62 @@ fn parse_speak<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
         lang,
         base,
         on_lang_failure,
+    }))
+}
+
+fn parse_lexicon<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+    let xml_id = elem
+        .try_get_attribute("xml:id")?
+        .context("xml:id attribute is required with a lexicon element")?
+        .decode_and_unescape_value(reader)?
+        .to_string();
+
+    let uri: http::Uri = elem
+        .try_get_attribute("uri")?
+        .context("uri attribute is required with a lexicon element")?
+        .decode_and_unescape_value(reader)?
+        .to_string()
+        .parse()?;
+
+    lazy_static! {
+        static ref TIME_RE: Regex = Regex::new(r"^\+?((?:\d*\.)?\d)+(s|ms)$").unwrap();
+    }
+
+    let fetchtimeout = match elem.try_get_attribute("fetchtimeout")? {
+        Some(fetchtimeout) => {
+            let fetchtimeout = fetchtimeout.decode_and_unescape_value(reader)?;
+
+            let caps = TIME_RE
+                .captures(&fetchtimeout)
+                .context("fetchtimeout attribute must be a valid TimeDesignation")?;
+
+            let num_val = (&caps[1]).parse::<f32>().unwrap();
+
+            match &caps[2] {
+                "s" => Some(TimeDesignation::Seconds(num_val)),
+                "ms" => Some(TimeDesignation::Milliseconds(num_val)),
+                _ => unreachable!(),
+            }
+        }
+        None => None,
+    };
+
+    let ty = match elem.try_get_attribute("type")? {
+        Some(ty) => {
+            let ty = ty.decode_and_unescape_value(reader)?.to_string();
+            let ty = MediaTypeBuf::from_string(ty)
+                .context("invalid media type for type attribute of lexicon element")?;
+
+            Some(ty)
+        }
+        None => None,
+    };
+
+    Ok(ParsedElement::Lexicon(LexiconAttributes {
+        uri,
+        xml_id,
+        fetchtimeout,
+        ty,
     }))
 }
 
@@ -424,10 +483,6 @@ fn parse_prosody<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result
         duration,
         volume,
     }))
-}
-
-fn parse_paragraph<R: io::BufRead>(reader: &mut Reader<R>) -> Result<()> {
-    todo!()
 }
 
 fn parse_duration(duration: &str) -> Result<Duration> {
