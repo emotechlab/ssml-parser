@@ -3,16 +3,16 @@ use crate::*;
 use anyhow::{bail, Context, Result};
 use lazy_static::lazy_static;
 use mediatype::MediaTypeBuf;
+
 use quick_xml::events::{BytesStart, BytesText, Event};
 use quick_xml::reader::Reader;
 use regex::Regex;
 use std::cmp::{Ord, Ordering};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io;
 use std::num::NonZeroUsize;
 use std::str::from_utf8;
 use std::str::FromStr;
-use std::time::Duration;
 
 /// Shows a region of the cleaned transcript which an SSML element applies to.
 #[derive(Clone, Debug, PartialEq)]
@@ -101,6 +101,8 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
     let mut text_buffer = String::new();
     let mut open_tags = vec![];
     let mut tags = vec![];
+    let mut event_log = vec![];
+
     loop {
         match reader.read_event()? {
             Event::Start(e) if e.local_name().as_ref() == b"speak" => {
@@ -110,11 +112,16 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                     bail!("Speak element cannot be placed inside a Speak");
                 }
                 has_started = true;
+
+                let element = parse_speak(e, &reader)?;
+                event_log.push(ParserLogEvent::Open(element.clone()));
+
                 let span = Span {
                     start: text_buffer.chars().count(),
                     end: text_buffer.chars().count(),
-                    element: parse_speak(e, &reader)?,
+                    element,
                 };
+
                 open_tags.push((SsmlElement::Speak, tags.len(), span));
             }
             Event::Start(e) => {
@@ -131,6 +138,8 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                         text_buffer.push(' ');
                     }
                     let (ty, element) = parse_element(e, &mut reader)?;
+                    event_log.push(ParserLogEvent::Open(element.clone()));
+
                     let new_span = Span {
                         start: text_buffer.chars().count(),
                         end: text_buffer.chars().count(),
@@ -142,6 +151,7 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                         }
                         _ => {}
                     }
+
                     open_tags.push((ty, tags.len(), new_span));
                 }
             }
@@ -154,11 +164,14 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
             Event::Text(e) => {
                 // TODO we should stop text contents of tags where insides shouldn't be added to
                 // synthesis output from entering our text buffer
+                let text_start = text_buffer.len();
                 push_text(e, &mut text_buffer)?;
+                let text_end = text_buffer.len();
+                event_log.push(ParserLogEvent::Text((text_start, text_end)));
             }
             Event::End(e) => {
-                let local_name = e.local_name();
-                let name = from_utf8(local_name.as_ref())?;
+                let name = e.name();
+                let name = from_utf8(name.as_ref())?;
                 if open_tags.is_empty() {
                     bail!(
                         "Invalid SSML close tag '{}' presented without open tag.",
@@ -171,9 +184,11 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                 } else {
                     // Okay time to close and remove tag
                     let (_, pos, mut span) = open_tags.remove(open_tags.len() - 1);
+                    event_log.push(ParserLogEvent::Close(span.element.clone()));
                     span.end = text_buffer.chars().count();
                     tags.insert(pos, span);
-                    if ssml_elem == SsmlElement::Speak && open_tags.is_empty() {
+                    if !(ssml_elem == SsmlElement::Speak && open_tags.is_empty()) {
+                    } else {
                         break;
                     }
                 }
@@ -185,6 +200,7 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
                     end: text_buffer.chars().count(),
                     element,
                 };
+                event_log.push(ParserLogEvent::Empty(span.element.clone()));
                 tags.push(span);
             }
         }
@@ -193,15 +209,16 @@ pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
     Ok(Ssml {
         text: text_buffer,
         tags,
+        event_log,
     })
 }
 
-fn parse_element<'a>(
+fn parse_element(
     elem: BytesStart,
-    reader: &mut Reader<&'a [u8]>,
+    reader: &mut Reader<&[u8]>,
 ) -> Result<(SsmlElement, ParsedElement)> {
-    let local_name = elem.local_name();
-    let name = from_utf8(local_name.as_ref())?;
+    let name = elem.name();
+    let name = from_utf8(name.as_ref())?;
     let elem_type = SsmlElement::from_str(name).unwrap();
 
     let res = match elem_type {
@@ -232,7 +249,7 @@ fn parse_element<'a>(
             ParsedElement::Description(text)
         }
         SsmlElement::Custom(ref s) => {
-            let mut attributes = HashMap::new();
+            let mut attributes = BTreeMap::new();
             for attr in elem.attributes() {
                 let attr = attr?;
                 attributes.insert(
@@ -247,32 +264,60 @@ fn parse_element<'a>(
     Ok((elem_type, res))
 }
 
+// TODO: handle start mark and end mark
 fn parse_speak<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
-    let lang = elem
-        .try_get_attribute("lang")?
-        .or_else(|| elem.try_get_attribute("xml:lang").unwrap_or_default());
+    let version = elem
+        .try_get_attribute("version")?
+        .context("version attribute is required on (speak) root element")?
+        .decode_and_unescape_value(reader)?
+        .to_string();
+
+    match version.as_str() {
+        "1.0" | "1.1" => (),
+        v => bail!("Unsupported SSML spec version: {}", v),
+    }
+
+    let lang = elem.try_get_attribute("xml:lang")?;
     let lang = if let Some(lang) = lang {
         Some(lang.decode_and_unescape_value(reader)?.to_string())
     } else {
         None
     };
-    let base = elem.try_get_attribute("base")?;
+    let base = elem.try_get_attribute("xml:base")?;
     let base = if let Some(base) = base {
         Some(base.decode_and_unescape_value(reader)?.to_string())
     } else {
         None
     };
-    let on_lang_failure = elem.try_get_attribute("nolangfailure")?;
+    let on_lang_failure = elem.try_get_attribute("onlangfailure")?;
     let on_lang_failure = if let Some(lang) = on_lang_failure {
         let value = lang.decode_and_unescape_value(reader)?;
         Some(OnLanguageFailure::from_str(&value)?)
     } else {
         None
     };
+
+    let mut xml_root_attrs = BTreeMap::new();
+    for attr in elem.attributes() {
+        let attr = attr?;
+
+        match std::str::from_utf8(attr.key.0).unwrap() {
+            "xml:base" | "xml:lang" | "onlangfailure" | "version" => continue,
+            attr_name => {
+                xml_root_attrs.insert(
+                    String::from(attr_name),
+                    String::from_utf8(attr.value.into())?,
+                );
+            }
+        }
+    }
+
     Ok(ParsedElement::Speak(SpeakAttributes {
         lang,
         base,
         on_lang_failure,
+        version,
+        xml_root_attrs,
     }))
 }
 
@@ -433,13 +478,12 @@ fn parse_break<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
     } else {
         None
     };
-    let time = elem.try_get_attribute("time")?;
-    let time = if let Some(time) = time {
-        let value = time.decode_and_unescape_value(reader)?;
-        let duration = parse_duration(&value)?;
-        Some(duration)
-    } else {
-        None
+    let time = match elem.try_get_attribute("time")? {
+        Some(time) => {
+            let value = time.decode_and_unescape_value(reader)?;
+            Some(TimeDesignation::from_str(&value)?)
+        }
+        None => None,
     };
 
     Ok(ParsedElement::Break(BreakAttributes { strength, time }))
@@ -537,14 +581,11 @@ fn parse_prosody<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result
     } else {
         None
     };
-    let duration = elem.try_get_attribute("duration")?;
-    let duration = if let Some(duration) = duration {
-        let value = duration.decode_and_unescape_value(reader)?;
-        let duration = parse_duration(&value)?;
-        Some(duration)
-    } else {
-        None
+    let duration = match elem.try_get_attribute("duration")? {
+        Some(val) => Some(val.decode_and_unescape_value(reader)?.parse()?),
+        None => None,
     };
+
     let volume = elem.try_get_attribute("volume")?;
     let volume = if let Some(volume) = volume {
         let value = volume.decode_and_unescape_value(reader)?;
@@ -566,20 +607,6 @@ fn parse_prosody<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result
         duration,
         volume,
     }))
-}
-
-fn parse_duration(duration: &str) -> Result<Duration> {
-    if duration.ends_with("ms") && duration.len() > 2 {
-        let time = &duration[0..(duration.len() - 2)].parse::<f32>()?;
-        Ok(Duration::from_secs_f32(*time / 1000.0))
-    } else if duration.ends_with("s") && duration.len() > 1 {
-        let time = &duration[0..(duration.len() - 1)].parse::<f32>()?;
-        Ok(Duration::from_secs_f32(*time))
-    } else if duration.is_empty() {
-        bail!("duration string is empty");
-    } else {
-        bail!("invalid time: '{}'", duration);
-    }
 }
 
 fn parse_mark<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
@@ -634,7 +661,7 @@ fn parse_voice<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
         Some(v) => {
             let value = v.decode_and_unescape_value(reader)?;
             value
-                .split(" ")
+                .split(' ')
                 .map(|x| x.to_string())
                 .collect::<Vec<String>>()
         }
@@ -645,7 +672,7 @@ fn parse_voice<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
         Some(v) => {
             let value = v.decode_and_unescape_value(reader)?;
             let mut res = vec![];
-            for language in value.split(" ") {
+            for language in value.split(' ') {
                 res.push(LanguageAccentPair::from_str(language)?);
             }
             res
@@ -765,10 +792,10 @@ pub(crate) fn parse_decibel(val: &str) -> anyhow::Result<f32> {
         static ref DB_RE: Regex = Regex::new(r"^[+-]?((?:\d*\.)?\d)+dB$").unwrap();
     }
     let caps = DB_RE
-        .captures(&val)
+        .captures(val)
         .context("value must be a valid decibel value")?;
 
-    let num_val = (&caps[1]).parse::<f32>()?;
+    let num_val = caps[1].parse::<f32>()?;
     Ok(num_val)
 }
 
@@ -778,29 +805,16 @@ pub(crate) fn parse_unsigned_percentage(val: &str) -> anyhow::Result<f32> {
         static ref PERCENT_RE: Regex = Regex::new(r"^+?((?:\d*\.)?\d)+%$").unwrap();
     }
     let caps = PERCENT_RE
-        .captures(&val)
+        .captures(val)
         .context("value must be a valid percentage value")?;
 
-    let num_val = (&caps[1]).parse::<f32>()?;
+    let num_val = caps[1].parse::<f32>()?;
     Ok(num_val)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn simple_durations() {
-        assert_eq!(parse_duration("1s").unwrap(), Duration::from_secs(1));
-        assert_eq!(
-            parse_duration("1.5s").unwrap(),
-            Duration::from_secs_f32(1.5)
-        );
-        assert_eq!(parse_duration("1000ms").unwrap(), Duration::from_secs(1));
-        assert!(parse_duration("1s 500ms").is_err());
-        assert!(parse_duration("1").is_err());
-        assert!(parse_duration("five score and thirty years").is_err());
-    }
 
     #[test]
     fn span_ordering() {
@@ -837,8 +851,8 @@ mod tests {
 
     #[test]
     fn char_position_not_byte() {
-        let unicode = parse_ssml("<speak>Let’s review a complex structure. Please note how threshold of control is calculated in this example.</speak>").unwrap();
-        let ascii = parse_ssml("<speak>Let's review a complex structure. Please note how threshold of control is calculated in this example.</speak>").unwrap();
+        let unicode = parse_ssml(r#"<speak version="1.1">Let’s review a complex structure. Please note how threshold of control is calculated in this example.</speak>"#).unwrap();
+        let ascii = parse_ssml(r#"<speak version="1.1">Let's review a complex structure. Please note how threshold of control is calculated in this example.</speak>"#).unwrap();
 
         let master_span_unicode = unicode.tags().next().unwrap();
         let master_span_ascii = ascii.tags().next().unwrap();
@@ -849,13 +863,15 @@ mod tests {
 
     #[test]
     fn span_contains() {
-        let empty = parse_ssml("<speak><break/><break/></speak>").unwrap();
+        let empty = parse_ssml(r#"<speak version="1.1"><break/><break/></speak>"#).unwrap();
 
         assert!(empty.tags[0].maybe_contains(&empty.tags[1]));
         assert!(empty.tags[0].maybe_contains(&empty.tags[2]));
         assert!(!empty.tags[1].maybe_contains(&empty.tags[2]));
 
-        let hello = parse_ssml("<speak>Hello <s><w>hello</w></s> world <break/></speak>").unwrap();
+        let hello =
+            parse_ssml(r#"<speak version="1.1">Hello <s><w>hello</w></s> world <break/></speak>"#)
+                .unwrap();
         assert!(hello.tags[0].maybe_contains(&hello.tags[1]));
         assert!(hello.tags[0].maybe_contains(&hello.tags[2]));
         assert!(hello.tags[0].maybe_contains(&hello.tags[3]));
@@ -863,10 +879,10 @@ mod tests {
         assert!(!hello.tags[1].maybe_contains(&hello.tags[3]));
         assert!(!hello.tags[2].maybe_contains(&hello.tags[3]));
 
-        let empty = parse_ssml("<speak>Hello <p></p><p></p></speak>").unwrap();
+        let empty = parse_ssml(r#"<speak version="1.1">Hello <p></p><p></p></speak>"#).unwrap();
         assert!(!empty.tags[1].maybe_contains(&empty.tags[2]));
 
-        let break_inside_custom = parse_ssml(r#"<speak><mstts:express-as style="string" styledegree="value" role="string">hello<break/> world</mstts:express-as></speak>"#).unwrap();
+        let break_inside_custom = parse_ssml(r#"<speak version="1.1"><mstts:express-as style="string" styledegree="value" role="string">hello<break/> world</mstts:express-as></speak>"#).unwrap();
         assert!(break_inside_custom.tags[1].maybe_contains(&break_inside_custom.tags[2]));
     }
 
@@ -894,7 +910,7 @@ mod tests {
   </audio>
 </speak>"#;
 
-        let res = parse_ssml(&text).unwrap();
+        let res = parse_ssml(text).unwrap();
 
         assert_eq!(res.get_text().trim(),
                    "Heads of State often make mistakes when speaking in a foreign language. One of the most well-known examples is that of John F. Kennedy: If you could hear it, this would be a recording of John F. Kennedy speaking in Berlin.");
@@ -902,7 +918,7 @@ mod tests {
 
     #[test]
     fn handle_language_elements() {
-        let lang = r#"<speak><lang xml:lang="ja"></lang><lang xml:lang="en" onlangfailure="ignoretext"></lang></speak>"#;
+        let lang = r#"<speak version="1.1"><lang xml:lang="ja"></lang><lang xml:lang="en" onlangfailure="ignoretext"></lang></speak>"#;
 
         let res = parse_ssml(lang).unwrap();
 
@@ -922,7 +938,7 @@ mod tests {
             })
         );
 
-        let lang = r#"<speak><lang lang="ja"></lang></speak>"#;
+        let lang = r#"<speak version="1.1"><lang lang="ja"></lang></speak>"#;
 
         assert!(parse_ssml(lang).is_err());
     }

@@ -41,12 +41,13 @@
 // The say-as element has three attributes: interpret-as, format, and detail. The interpret-as attribute is always required; the other two attributes are optional. The legal values for the format attribute depend on the value of the interpret-as attribute.
 use anyhow::{bail, Context};
 use lazy_static::lazy_static;
+use quick_xml::escape::escape;
 use regex::Regex;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::convert::Infallible;
+use std::fmt::{self, Display};
 use std::num::NonZeroUsize;
 use std::str::FromStr;
-use std::time::Duration;
 
 // Structural elements
 // * speak
@@ -200,6 +201,39 @@ impl SsmlElement {
     }
 }
 
+impl Display for SsmlElement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use SsmlElement::*;
+        write!(
+            f,
+            "{}",
+            match self {
+                Custom(name) => name,
+                Speak => "speak",
+                Lexicon => "lexicon",
+                Lookup => "lookup",
+                Meta => "meta",
+                Metadata => "metadata",
+                Paragraph => "p",
+                Sentence => "s",
+                Token => "token",
+                Word => "w",
+                SayAs => "say-as",
+                Phoneme => "phoneme",
+                Sub => "sub",
+                Lang => "lang",
+                Voice => "voice",
+                Emphasis => "emphasis",
+                Break => "break",
+                Prosody => "prosody",
+                Audio => "audio",
+                Mark => "mark",
+                Description => "desc",
+            }
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParsedElement {
     Speak(SpeakAttributes),
@@ -224,10 +258,44 @@ pub enum ParsedElement {
     Audio(AudioAttributes),
     Mark(MarkAttributes),
     Description(String),
-    Custom((String, HashMap<String, String>)),
+    Custom((String, BTreeMap<String, String>)),
 }
 
 impl ParsedElement {
+    pub fn attribute_string(&self) -> String {
+        use ParsedElement::*;
+
+        match self {
+            Lexicon(attr) => format!("{}", attr),
+            Lookup(attr) => format!("{}", attr),
+            Meta(attr) => format!("{}", attr),
+            Metadata => String::new(),
+            Paragraph => String::new(),
+            Sentence => String::new(),
+            Token(attr) => format!("{}", attr),
+            Word(attr) => format!("{}", attr),
+            SayAs(attr) => format!("{}", attr),
+            Speak(attr) => format!("{}", attr),
+            Phoneme(attr) => format!("{}", attr),
+            Sub(attr) => format!("{}", attr),
+            Lang(attr) => format!("{}", attr),
+            Voice(attr) => format!("{}", attr),
+            Emphasis(attr) => format!("{}", attr),
+            Break(attr) => format!("{}", attr),
+            Prosody(attr) => format!("{}", attr),
+            Audio(attr) => format!("{}", attr),
+            Mark(attr) => format!("{}", attr),
+            Description(_) => String::new(),
+            Custom((_, attr_map)) => {
+                let mut attr_str = String::new();
+                for (name, val) in attr_map.iter() {
+                    attr_str.push_str(&format!(" {}=\"{}\"", name, val));
+                }
+                attr_str
+            }
+        }
+    }
+
     pub fn can_contain_tags(&self) -> bool {
         SsmlElement::from(self).can_contain_tags()
     }
@@ -265,11 +333,33 @@ impl From<&ParsedElement> for SsmlElement {
     }
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct SpeakAttributes {
     pub lang: Option<String>,
     pub base: Option<String>,
     pub on_lang_failure: Option<OnLanguageFailure>,
+    pub version: String,
+    // for remaining attributes on root like namespace etc
+    pub xml_root_attrs: BTreeMap<String, String>,
+}
+
+impl Display for SpeakAttributes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, " version=\"{}\"", escape(&self.version))?;
+        if let Some(lang) = &self.lang {
+            write!(f, " xml:lang=\"{}\"", escape(lang))?;
+        }
+        if let Some(base) = &self.base {
+            write!(f, " xml:base=\"{}\"", escape(base))?;
+        }
+        if let Some(fail) = &self.on_lang_failure {
+            write!(f, " onlangfailure=\"{}\"", fail)?;
+        }
+        for (attr_name, attr_value) in self.xml_root_attrs.iter() {
+            write!(f, " {}=\"{}\"", attr_name, attr_value)?;
+        }
+        Ok(())
+    }
 }
 
 /// The lang element is used to specify the natural language of the content.
@@ -277,6 +367,17 @@ pub struct SpeakAttributes {
 pub struct LangAttributes {
     pub lang: String,
     pub on_lang_failure: Option<OnLanguageFailure>,
+}
+
+impl Display for LangAttributes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, " xml:lang=\"{}\"", escape(&self.lang))?;
+        if let Some(fail) = self.on_lang_failure {
+            write!(f, " onlangfailure=\"{}\"", fail)?;
+        }
+
+        Ok(())
+    }
 }
 
 /// The onlangfailure attribute is an optional attribute that contains one value
@@ -302,6 +403,22 @@ pub enum OnLanguageFailure {
     /// The synthesis processor chooses the behavior (either changevoice, ignoretext,
     /// or ignorelang).
     ProcessorChoice,
+}
+
+impl Display for OnLanguageFailure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use OnLanguageFailure::*;
+        write!(
+            f,
+            "{}",
+            match self {
+                ChangeVoice => "changevoice",
+                IgnoreText => "ignoretext",
+                IgnoreLang => "ignorelang",
+                ProcessorChoice => "processorchoice",
+            }
+        )
+    }
 }
 
 impl FromStr for OnLanguageFailure {
@@ -405,10 +522,37 @@ pub struct LexiconAttributes {
     pub fetch_timeout: Option<TimeDesignation>,
 }
 
+impl Display for LexiconAttributes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, " uri=\"{}\"", escape(&self.uri.to_string()))?;
+        write!(f, " xml:id=\"{}\"", escape(&self.xml_id))?;
+        if let Some(ty) = &self.ty {
+            write!(f, " type=\"{}\"", ty)?;
+        }
+        if let Some(timeout) = &self.fetch_timeout {
+            write!(f, " fetch_timeout=\"{}\"", timeout)?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum TimeDesignation {
     Seconds(f32),
     Milliseconds(f32),
+}
+
+impl Display for TimeDesignation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Seconds(val) => format!("{}s", val),
+                Self::Milliseconds(val) => format!("{}ms", val),
+            }
+        )
+    }
 }
 
 impl FromStr for TimeDesignation {
@@ -419,10 +563,10 @@ impl FromStr for TimeDesignation {
             static ref TIME_RE: Regex = Regex::new(r"^\+?((?:\d*\.)?\d)+(s|ms)$").unwrap();
         }
         let caps = TIME_RE
-            .captures(&time)
+            .captures(time)
             .context("attribute must be a valid TimeDesignation")?;
 
-        let num_val = (&caps[1]).parse::<f32>().unwrap();
+        let num_val = caps[1].parse::<f32>().unwrap();
 
         match &caps[2] {
             "s" => Ok(TimeDesignation::Seconds(num_val)),
@@ -471,6 +615,12 @@ pub struct LookupAttributes {
     pub lookup_ref: String,
 }
 
+impl Display for LookupAttributes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, " ref=\"{}\"", escape(&self.lookup_ref))
+    }
+}
+
 /// The metadata and meta elements are containers in which information about the
 /// document can be placed. The metadata element provides more general and powerful
 /// treatment of metadata information than meta by using a metadata schema.
@@ -498,6 +648,20 @@ pub struct MetaAttributes {
     pub name: Option<String>,
     pub http_equiv: Option<String>,
     pub content: String,
+}
+
+impl Display for MetaAttributes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, " content=\"{}\"", escape(&self.content))?;
+        if let Some(http_equiv) = &self.http_equiv {
+            write!(f, " http-equiv=\"{}\"", escape(http_equiv))?;
+        }
+        if let Some(name) = &self.name {
+            write!(f, " name=\"{}\"", escape(name))?;
+        }
+
+        Ok(())
+    }
 }
 /// The token element allows the author to indicate its content is a token and to
 /// eliminate token (word) segmentation ambiguities of the synthesis processor.
@@ -538,6 +702,16 @@ pub struct TokenAttributes {
     pub role: Option<String>,
 }
 
+impl Display for TokenAttributes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(role) = &self.role {
+            write!(f, " role=\"{}\"", escape(role))?;
+        }
+
+        Ok(())
+    }
+}
+
 /// The say-as element allows the author to indicate information on the type of text
 /// construct contained within the element and to help specify the level of detail
 /// for rendering the contained text.
@@ -568,10 +742,37 @@ pub struct SayAsAttributes {
     pub detail: Option<String>,
 }
 
+impl Display for SayAsAttributes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, " interpret-as=\"{}\"", escape(&self.interpret_as))?;
+        if let Some(format) = &self.format {
+            write!(f, " format=\"{}\"", escape(format))?;
+        }
+        if let Some(detail) = &self.detail {
+            write!(f, " detail=\"{}\"", escape(detail))?
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum PhonemeAlphabet {
     Ipa,
     Other(String),
+}
+
+impl Display for PhonemeAlphabet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Ipa => "ipa".into(),
+                Self::Other(alphabet) => escape(alphabet),
+            }
+        )
+    }
 }
 
 impl FromStr for PhonemeAlphabet {
@@ -612,6 +813,17 @@ pub struct PhonemeAttributes {
     pub alphabet: Option<PhonemeAlphabet>,
 }
 
+impl Display for PhonemeAttributes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, " ph=\"{}\"", escape(&self.ph))?;
+        if let Some(alphabet) = &self.alphabet {
+            write!(f, " alphabet=\"{}\"", alphabet)?;
+        }
+
+        Ok(())
+    }
+}
+
 ///  The strength attribute is an optional attribute having one of the following
 ///  values: "none", "x-weak", "weak", "medium" (default value), "strong", or
 ///  "x-strong". This attribute is used to indicate the strength of the prosodic
@@ -639,6 +851,23 @@ pub enum Strength {
     Strong,
     /// Extra strong break (x-strong)
     ExtraStrong,
+}
+
+impl Display for Strength {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::No => "no",
+                Self::ExtraWeak => "x-weak",
+                Self::Weak => "weak",
+                Self::Medium => "medium",
+                Self::Strong => "strong",
+                Self::ExtraStrong => "x-strong",
+            }
+        )
+    }
 }
 
 impl FromStr for Strength {
@@ -691,6 +920,20 @@ impl FromStr for PitchStrength {
     }
 }
 
+impl Display for PitchStrength {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        let pitch_strength = match self {
+            PitchStrength::XLow => "x-low",
+            PitchStrength::Low => "low",
+            PitchStrength::Medium => "medium",
+            PitchStrength::High => "high",
+            PitchStrength::XHigh => "x-high",
+            PitchStrength::Default => "default",
+        };
+        write!(fmt, "{}", pitch_strength)
+    }
+}
+
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -728,6 +971,21 @@ impl FromStr for VolumeStrength {
     }
 }
 
+impl fmt::Display for VolumeStrength {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        let volume_strength = match self {
+            VolumeStrength::Silent => "silent",
+            VolumeStrength::XSoft => "x-soft",
+            VolumeStrength::Soft => "soft",
+            VolumeStrength::Medium => "medium",
+            VolumeStrength::Loud => "loud",
+            VolumeStrength::XLoud => "x-loud",
+            VolumeStrength::Default => "default",
+        };
+        write!(fmt, "{}", volume_strength)
+    }
+}
+
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -762,13 +1020,27 @@ impl FromStr for RateStrength {
     }
 }
 
+impl fmt::Display for RateStrength {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        let rate_strength = match self {
+            RateStrength::XSlow => "x-slow",
+            RateStrength::Slow => "slow",
+            RateStrength::Medium => "medium",
+            RateStrength::Fast => "fast",
+            RateStrength::XFast => "x-fast",
+            RateStrength::Default => "default",
+        };
+        write!(fmt, "{}", rate_strength)
+    }
+}
+
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub enum PitchRange {
     Strength(PitchStrength), // low, medium high etc
-    Frequency((f32, Unit)),
-    RelativeChange((f32, Unit)),
+    Frequency(f32),
+    RelativeChange((f32, char, Unit)),
 }
 
 impl FromStr for PitchRange {
@@ -782,69 +1054,80 @@ impl FromStr for PitchRange {
             "high" => Ok(Self::Strength(PitchStrength::High)),
             "x-high" => Ok(Self::Strength(PitchStrength::XHigh)),
             "default" => Ok(Self::Strength(PitchStrength::Default)),
-            value if value.ends_with("Hz") || value.ends_with("%") || value.ends_with("st") => {
+            value if value.ends_with("Hz") || value.ends_with('%') || value.ends_with("st") => {
                 if value.ends_with("Hz") {
-                    if value.starts_with("+") || value.starts_with("-") {
-                        if value.starts_with("-") {
+                    if value.starts_with('+') || value.starts_with('-') {
+                        if value.starts_with('-') {
+                            Ok(Self::RelativeChange((
+                                value.strip_suffix("Hz").unwrap().parse::<f32>()? * -1.0,
+                                '-',
+                                Unit::Hz,
+                            )))
+                        } else {
                             Ok(Self::RelativeChange((
                                 value.strip_suffix("Hz").unwrap().parse::<f32>()?,
-                                Unit::Hz,
-                            )))
-                        } else {
-                            Ok(Self::RelativeChange((
-                                value.strip_suffix("Hz").unwrap().parse()?,
+                                '+',
                                 Unit::Hz,
                             )))
                         }
                     } else {
-                        Ok(Self::Frequency((
-                            value.strip_suffix("Hz").unwrap().parse()?,
-                            Unit::Hz,
-                        )))
+                        Ok(Self::Frequency(
+                            value.strip_suffix("Hz").unwrap().parse::<f32>()?,
+                        ))
                     }
-                } else if value.ends_with("%") {
-                    if value.starts_with("+") || value.starts_with("-") {
-                        if value.starts_with("-") {
+                } else if value.ends_with('%') {
+                    if value.starts_with('+') || value.starts_with('-') {
+                        if value.starts_with('-') {
                             Ok(Self::RelativeChange((
-                                value.strip_suffix("%").unwrap().parse::<f32>()?,
+                                value.strip_suffix('%').unwrap().parse::<f32>()? * -1.0,
+                                '-',
                                 Unit::Percentage,
                             )))
                         } else {
                             Ok(Self::RelativeChange((
-                                value.strip_suffix("%").unwrap().parse()?,
+                                value.strip_suffix('%').unwrap().parse::<f32>()?,
+                                '+',
                                 Unit::Percentage,
                             )))
                         }
                     } else {
-                        Ok(Self::RelativeChange((
-                            value.strip_suffix("%").unwrap().parse()?,
-                            Unit::Percentage,
-                        )))
+                        bail!("Unrecognised value {}", "Pitch value unrecognised");
                     }
                 } else if value.ends_with("st") {
-                    if value.starts_with("+") || value.starts_with("-") {
-                        if value.starts_with("-") {
+                    if value.starts_with('+') || value.starts_with('-') {
+                        if value.starts_with('-') {
                             Ok(Self::RelativeChange((
-                                value.strip_suffix("st").unwrap().parse::<f32>()?,
+                                value.strip_suffix("st").unwrap().parse::<f32>()? * -1.0,
+                                '-',
                                 Unit::St,
                             )))
                         } else {
                             Ok(Self::RelativeChange((
-                                value.strip_suffix("st").unwrap().parse()?,
+                                value.strip_suffix("st").unwrap().parse::<f32>()?,
+                                '+',
                                 Unit::St,
                             )))
                         }
                     } else {
-                        Ok(Self::RelativeChange((
-                            value.strip_suffix("st").unwrap().parse()?,
-                            Unit::St,
-                        )))
+                        bail!("Unrecognised value {}", "Pitch value unrecognised");
                     }
                 } else {
                     bail!("Unrecognised value {}", "Pitch value unrecognised");
                 }
             }
             e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
+impl fmt::Display for PitchRange {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Strength(strength) => write!(fmt, "{}", strength),
+            Self::Frequency(frequency) => write!(fmt, "{}Hz", frequency),
+            Self::RelativeChange((relchange, sign, unit)) => {
+                write!(fmt, "{}{}{}", sign, relchange, unit)
+            }
         }
     }
 }
@@ -869,24 +1152,19 @@ impl FromStr for VolumeRange {
             "loud" => Ok(Self::Strength(VolumeStrength::Loud)),
             "x-loud" => Ok(Self::Strength(VolumeStrength::XLoud)),
             "default" => Ok(Self::Strength(VolumeStrength::Default)),
-            value if value.ends_with("dB") => {
-                if value.starts_with("+") || value.starts_with("-") {
-                    if value.starts_with("-") {
-                        Ok(Self::Decibel(
-                            value.strip_suffix("dB").unwrap().parse::<f32>()? * -1.0,
-                        ))
-                    } else {
-                        Ok(Self::Decibel(
-                            value.strip_suffix("dB").unwrap().parse::<f32>()?,
-                        ))
-                    }
-                } else {
-                    Ok(Self::Decibel(
-                        value.strip_suffix("dB").unwrap().parse::<f32>()?,
-                    ))
-                }
-            }
+            value if value.ends_with("dB") => Ok(Self::Decibel(
+                value.strip_suffix("dB").unwrap().parse::<f32>()?,
+            )),
             e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
+impl fmt::Display for VolumeRange {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Strength(strength) => write!(fmt, "{}", strength),
+            Self::Decibel(percent) => write!(fmt, "{}dB", percent),
         }
     }
 }
@@ -910,11 +1188,11 @@ impl FromStr for RateRange {
             "fast" => Ok(Self::Strength(RateStrength::Fast)),
             "x-fast" => Ok(Self::Strength(RateStrength::XFast)),
             "default" => Ok(Self::Strength(RateStrength::Default)),
-            value if value.ends_with("%") => {
-                if value.starts_with("+") || value.starts_with("-") {
-                    if value.starts_with("+") {
+            value if value.ends_with('%') => {
+                if value.starts_with('+') || value.starts_with('-') {
+                    if value.starts_with('+') {
                         Ok(Self::Percentage(
-                            value.strip_suffix("%").unwrap().parse::<PositiveNumber>()?,
+                            value.strip_suffix('%').unwrap().parse::<PositiveNumber>()?,
                         ))
                     } else {
                         bail!(
@@ -924,11 +1202,20 @@ impl FromStr for RateRange {
                     }
                 } else {
                     Ok(Self::Percentage(
-                        value.strip_suffix("%").unwrap().parse::<PositiveNumber>()?,
+                        value.strip_suffix('%').unwrap().parse::<PositiveNumber>()?,
                     ))
                 }
             }
             e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
+impl fmt::Display for RateRange {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Strength(strength) => write!(fmt, "{}", strength),
+            Self::Percentage(percent) => write!(fmt, "{}%", percent),
         }
     }
 }
@@ -945,18 +1232,18 @@ impl FromStr for ContourElement {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            value if value.starts_with("(") && value.ends_with(")") => {
-                let value = value.strip_suffix(")").unwrap().to_string();
-                let value = value.strip_prefix("(").unwrap().to_string();
-                let elements = value.split(",").collect::<Vec<_>>();
+            value if value.starts_with('(') && value.ends_with(')') => {
+                let value = value.strip_suffix(')').unwrap().to_string();
+                let value = value.strip_prefix('(').unwrap().to_string();
+                let elements = value.split(',').collect::<Vec<_>>();
 
-                let pitch = match PitchRange::from_str(&elements[1]) {
+                let pitch = match PitchRange::from_str(elements[1]) {
                     Ok(result) => result,
                     Err(e) => bail!("Error: {}", e),
                 };
 
-                if elements[0].ends_with("%") {
-                    let percentage = elements[0].strip_suffix("%").unwrap().parse::<f32>()?;
+                if elements[0].ends_with('%') {
+                    let percentage = elements[0].strip_suffix('%').unwrap().parse::<f32>()?;
                     Ok(Self::Element((percentage, pitch)))
                 } else {
                     bail!(
@@ -966,6 +1253,16 @@ impl FromStr for ContourElement {
                 }
             }
             e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
+impl fmt::Display for ContourElement {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Element((pct, pitch_range)) => {
+                write!(fmt, "({}%,{})", pct, pitch_range)
+            }
         }
     }
 }
@@ -983,17 +1280,41 @@ impl FromStr for PitchContour {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut pitch_contour_elements = Vec::new();
         match s {
-            value if value.starts_with("(") => {
-                let elements = value.split(" ").collect::<Vec<_>>();
+            value if value.starts_with('(') => {
+                let elements = value.split(' ').collect::<Vec<_>>();
 
                 for element in elements {
-                    let pitchcontourelement = ContourElement::from_str(&element)?;
+                    let pitchcontourelement = ContourElement::from_str(element)?;
                     pitch_contour_elements.push(pitchcontourelement);
                 }
 
                 Ok(Self::Elements(pitch_contour_elements))
             }
             e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
+impl fmt::Display for PitchContour {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        let mut all_elements_str = "".to_string();
+        let mut start = true;
+        match self {
+            Self::Elements(elements) => {
+                for element in elements {
+                    let element_str = element.to_string();
+
+                    if !start {
+                        all_elements_str.push(' ');
+                    }
+                    all_elements_str.push_str(&element_str);
+
+                    if start {
+                        start = false;
+                    }
+                }
+                write!(fmt, "{}", all_elements_str)
+            }
         }
     }
 }
@@ -1012,33 +1333,38 @@ impl FromStr for PositiveNumber {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             value
-                if value.starts_with("+")
-                    || value.starts_with("-")
+                if value.starts_with('+')
+                    || value.starts_with('-')
                     || value.parse::<f32>().is_ok() =>
             {
-                if value.starts_with("+") {
-                    if value.contains(".") {
+                if value.starts_with('+') {
+                    if value.contains('.') {
                         Ok(Self::FloatNumber(
-                            value.strip_prefix("+").unwrap().parse::<f32>()?,
+                            value.strip_prefix('+').unwrap().parse::<f32>()?,
                         ))
                     } else {
                         Ok(Self::RoundNumber(
-                            value.strip_prefix("+").unwrap().parse::<isize>()?,
+                            value.strip_prefix('+').unwrap().parse::<isize>()?,
                         ))
                     }
+                } else if value.starts_with('-') {
+                    bail!("Unrecognised value {}", "Negative number not allowed");
+                } else if value.contains('.') {
+                    Ok(Self::FloatNumber(value.parse::<f32>()?))
                 } else {
-                    if value.starts_with("-") {
-                        bail!("Unrecognised value {}", "Negative number not allowed");
-                    } else {
-                        if value.contains(".") {
-                            Ok(Self::FloatNumber(value.parse::<f32>()?))
-                        } else {
-                            Ok(Self::RoundNumber(value.parse::<isize>()?))
-                        }
-                    }
+                    Ok(Self::RoundNumber(value.parse::<isize>()?))
                 }
             }
             e => bail!("Unrecognised value {}", e),
+        }
+    }
+}
+
+impl fmt::Display for PositiveNumber {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::FloatNumber(floatnum) => write!(fmt, "{}", floatnum),
+            Self::RoundNumber(roundnum) => write!(fmt, "{}", roundnum),
         }
     }
 }
@@ -1055,6 +1381,16 @@ pub enum Unit {
     Percentage,
 }
 
+impl fmt::Display for Unit {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Hz => write!(fmt, "Hz"),
+            Self::St => write!(fmt, "st"),
+            Self::Percentage => write!(fmt, "%"),
+        }
+    }
+}
+
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -1067,6 +1403,21 @@ pub enum EmphasisLevel {
     None,
     /// Reduced
     Reduced,
+}
+
+impl Display for EmphasisLevel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Strong => "strong",
+                Self::Moderate => "moderate",
+                Self::None => "none",
+                Self::Reduced => "reduced",
+            }
+        )
+    }
 }
 
 impl FromStr for EmphasisLevel {
@@ -1093,7 +1444,7 @@ impl FromStr for EmphasisLevel {
 ///
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct BreakAttributes {
     ///  The strength attribute is an optional attribute having one of the following
     ///  values: "none", "x-weak", "weak", "medium" (default value), "strong", or
@@ -1110,8 +1461,21 @@ pub struct BreakAttributes {
     /// pause to be inserted in the output in seconds or milliseconds. It
     /// follows the time value format from the Cascading Style Sheets Level 2
     /// Recommendation [CSS2], e.g. "250ms",
-    pub time: Option<Duration>,
+    pub time: Option<TimeDesignation>,
 }
+
+impl Display for BreakAttributes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(strength) = self.strength {
+            write!(f, " strength=\"{}\"", strength)?;
+        }
+        if let Some(time) = &self.time {
+            write!(f, " time=\"{}\"", time)?;
+        }
+        Ok(())
+    }
+}
+
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
@@ -1152,7 +1516,7 @@ pub struct ProsodyAttributes {
     /// duration: a value in seconds or milliseconds for the desired time to take to read the
     /// contained text. Follows the time value format from the Cascading Style Sheet Level 2
     /// Recommendation [CSS2], e.g. "250ms", "3s".
-    pub duration: Option<Duration>,
+    pub duration: Option<TimeDesignation>,
     /// the volume for the contained text. Legal values are: a number preceded by "+" or "-"
     /// and immediately followed by "dB"; or "silent", "x-soft", "soft", "medium", "loud", "x-loud",
     /// or "default". The default is +0.0dB. Specifying a value of "silent" amounts to specifying
@@ -1161,6 +1525,30 @@ pub struct ProsodyAttributes {
     /// it specifies the ratio of the squares of the new signal amplitude (a1) and the current
     /// amplitude (a0), and is defined in terms of dB:
     pub volume: Option<VolumeRange>,
+}
+
+impl Display for ProsodyAttributes {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        if let Some(pitch) = &self.pitch {
+            write!(f, " pitch=\"{}\"", pitch)?;
+        }
+        if let Some(contour) = &self.contour {
+            write!(f, " contour=\"{}\"", contour)?;
+        }
+        if let Some(range) = &self.range {
+            write!(f, " range=\"{}\"", range)?;
+        }
+        if let Some(rate) = &self.rate {
+            write!(f, " rate=\"{}\"", rate)?;
+        }
+        if let Some(duration) = &self.duration {
+            write!(f, " duration=\"{}\"", duration)?;
+        }
+        if let Some(volume) = &self.volume {
+            write!(f, " volume=\"{}\"", volume)?;
+        }
+        Ok(())
+    }
 }
 
 /// A mark element is an empty element that places a marker into the text/tag
@@ -1185,6 +1573,12 @@ pub struct MarkAttributes {
     pub name: String,
 }
 
+impl Display for MarkAttributes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, " name=\"{}\"", escape(&self.name))
+    }
+}
+
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -1199,6 +1593,16 @@ pub struct EmphasisAttributes {
     /// emphasizing words that it might typically emphasize. The values "none", "moderate", and "strong"
     /// are monotonically non-decreasing in strength.
     pub level: Option<EmphasisLevel>,
+}
+
+impl Display for EmphasisAttributes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(level) = self.level {
+            write!(f, " level=\"{}\"", level)?;
+        }
+
+        Ok(())
+    }
 }
 
 /// The sub element is employed to indicate that the text in the alias attribute
@@ -1216,11 +1620,31 @@ pub struct SubAttributes {
     pub alias: String,
 }
 
+impl Display for SubAttributes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, " alias=\"{}\"", escape(&self.alias))
+    }
+}
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Gender {
     Male,
     Female,
     Neutral,
+}
+
+impl Display for Gender {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Male => "male",
+                Self::Female => "female",
+                Self::Neutral => "neutral",
+            }
+        )
+    }
 }
 
 impl FromStr for Gender {
@@ -1244,6 +1668,16 @@ pub struct LanguageAccentPair {
     pub accent: Option<String>,
 }
 
+impl Display for LanguageAccentPair {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", escape(&self.lang))?;
+        if let Some(accent) = &self.accent {
+            write!(f, ":{}", escape(accent))?;
+        }
+        Ok(())
+    }
+}
+
 impl FromStr for LanguageAccentPair {
     type Err = anyhow::Error;
 
@@ -1253,7 +1687,7 @@ impl FromStr for LanguageAccentPair {
         } else if s == "und" || s == "zxx" {
             bail!("Disallowed language code");
         } else {
-            let lang_accent = s.split(":").collect::<Vec<_>>();
+            let lang_accent = s.split(':').collect::<Vec<_>>();
             if lang_accent.len() > 2 {
                 bail!(
                     "Invalid format 'language:accent' or 'language' expected for '{}'",
@@ -1422,10 +1856,52 @@ pub struct VoiceAttributes {
     pub languages: Vec<LanguageAccentPair>,
 }
 
+impl Display for VoiceAttributes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(gender) = self.gender {
+            write!(f, " gender=\"{}\"", gender)?;
+        }
+        if let Some(age) = self.age {
+            write!(f, " age=\"{}\"", age)?;
+        }
+        if let Some(variant) = self.variant {
+            write!(f, " variant=\"{}\"", variant)?;
+        }
+        if !self.name.is_empty() {
+            write!(f, " name=\"{}\"", escape(&self.name.join(" ")))?;
+        }
+        if !self.languages.is_empty() {
+            let languages_str = self
+                .languages
+                .iter()
+                .map(|l| format!("{}", l))
+                .collect::<Vec<String>>()
+                .join(" ");
+
+            write!(f, " languages=\"{}\"", languages_str)?;
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum FetchHint {
     Prefetch,
     Safe,
+}
+
+impl Display for FetchHint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Prefetch => "prefetch",
+                Self::Safe => "safe",
+            }
+        )
+    }
 }
 
 impl FromStr for FetchHint {
@@ -1474,7 +1950,6 @@ pub struct AudioAttributes {
     /// to accept content that has exceeded its expiration time by no more than the specified amount
     /// of time.
     pub max_stale: Option<usize>,
-
     // Trimming attributes
     /// offset from start of media to begin rendering. This offset is measured in normal media
     /// playback time from the beginning of the media.
@@ -1488,10 +1963,28 @@ pub struct AudioAttributes {
     /// total duration for repeatedly rendering media. This duration is measured in normal media
     /// playback time from the beginning of the media.
     pub repeat_dur: Option<TimeDesignation>,
-
     /// Sound level in decibels
     pub sound_level: f32,
-
     /// Speed in a percentage where 1.0 corresponds to 100%
     pub speed: f32,
+}
+
+impl Display for AudioAttributes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, " fetchhint=\"{}\"", self.fetch_hint)?;
+        if let Some(src) = &self.src {
+            write!(f, " src=\"{}\"", escape(&src.to_string()))?;
+        }
+        if let Some(timeout) = &self.fetch_timeout {
+            write!(f, " fetchtimeout=\"{}\"", timeout)?;
+        }
+        if let Some(max_age) = &self.max_age {
+            write!(f, " maxage=\"{}\"", max_age)?;
+        }
+        if let Some(max_stale) = &self.max_stale {
+            write!(f, " maxstale=\"{}\"", max_stale)?;
+        }
+
+        Ok(())
+    }
 }

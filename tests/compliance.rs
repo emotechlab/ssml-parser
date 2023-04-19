@@ -1,6 +1,5 @@
 use ssml_parser::elements::*;
 use ssml_parser::parser::parse_ssml;
-use std::time::Duration;
 
 /// Example SSML taken from Appendix E in the SSML specification which
 /// can be found [here](https://www.w3.org/TR/speech-synthesis11). All copied
@@ -38,20 +37,20 @@ fn simple_example() {
 
     if let ParsedElement::Speak(s) = &tags[0].element {
         assert_eq!(s.lang.as_ref().unwrap(), "en-US");
-        assert_eq!(result.get_text_from_span(&tags[0]).trim(), whole_sentence);
+        assert_eq!(result.get_text_from_span(tags[0]).trim(), whole_sentence);
     } else {
         panic!("Tag 0 wrong: {:?}", tags[0]);
     }
 
     if let ParsedElement::Paragraph = &tags[1].element {
-        assert_eq!(result.get_text_from_span(&tags[1]).trim(), whole_sentence);
+        assert_eq!(result.get_text_from_span(tags[1]).trim(), whole_sentence);
     } else {
         panic!("Tag 1 wrong: {:?}", tags[1]);
     }
 
     if let ParsedElement::Sentence = &tags[2].element {
         assert_eq!(
-            result.get_text_from_span(&tags[2]).trim(),
+            result.get_text_from_span(tags[2]).trim(),
             "You have 4 new messages."
         );
     } else {
@@ -60,14 +59,14 @@ fn simple_example() {
 
     if let ParsedElement::Sentence = &tags[3].element {
         assert_eq!(
-            result.get_text_from_span(&tags[3]).trim(),
+            result.get_text_from_span(tags[3]).trim(),
             "The first is from Stephanie Williams and arrived at 3:45pm."
         );
     } else {
         panic!("Tag 3 wrong: {:?}", tags[3]);
     }
 
-    if let ParsedElement::Break(b) = tags[4].element {
+    if let ParsedElement::Break(b) = &tags[4].element {
         assert_eq!(b.strength, None);
         assert_eq!(b.time, None);
     } else {
@@ -76,7 +75,7 @@ fn simple_example() {
 
     if let ParsedElement::Sentence = &tags[5].element {
         assert_eq!(
-            result.get_text_from_span(&tags[5]).trim(),
+            result.get_text_from_span(tags[5]).trim(),
             "The subject is ski trip"
         );
     } else {
@@ -237,7 +236,7 @@ fn ipa_support() {
 
 #[test]
 fn google_tts_example() {
-    let ssml = r#"<speak>
+    let ssml = r#"<speak version="1.1">
           Here are <say-as interpret-as="characters">SSML</say-as> samples.
           I can pause <break time="3s"/>.
           I can play a sound
@@ -290,7 +289,7 @@ fn microsoft_custom_tags() {
         use SsmlElement::*;
         vec![
             Speak,
-            Custom("backgroundaudio".to_string()),
+            Custom("mstts:backgroundaudio".to_string()),
             Voice,
             Audio,
             Custom("bookmark".to_string()),
@@ -299,9 +298,9 @@ fn microsoft_custom_tags() {
             Lang,
             Lexicon,
             Custom("math".to_string()),
-            Custom("express-as".to_string()),
-            Custom("silence".to_string()),
-            Custom("viseme".to_string()),
+            Custom("mstts:express-as".to_string()),
+            Custom("mstts:silence".to_string()),
+            Custom("mstts:viseme".to_string()),
             Paragraph,
             Phoneme,
             Prosody,
@@ -315,9 +314,9 @@ fn microsoft_custom_tags() {
         let actual_tag = SsmlElement::from(&parsed.element);
         assert_eq!(actual_tag, *expected);
 
-        if let ParsedElement::Break(b) = parsed.element {
+        if let ParsedElement::Break(b) = &parsed.element {
             assert_eq!(b.strength, Some(Strength::Medium));
-            assert_eq!(b.time, Some(Duration::from_secs(5)));
+            assert_eq!(b.time, Some(TimeDesignation::Seconds(5.0)));
         } else if let ParsedElement::Phoneme(p) = &parsed.element {
             assert_eq!(
                 p.alphabet.as_ref().unwrap(),
