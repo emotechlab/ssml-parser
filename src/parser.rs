@@ -266,16 +266,20 @@ fn parse_element(
 
 // TODO: handle start mark and end mark
 fn parse_speak<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
-    let version = elem
-        .try_get_attribute("version")?
-        .context("version attribute is required on (speak) root element")?
-        .decode_and_unescape_value(reader)?
-        .to_string();
+    let version = elem.try_get_attribute("version")?;
 
-    match version.as_str() {
-        "1.0" | "1.1" => (),
-        v => bail!("Unsupported SSML spec version: {}", v),
-    }
+    // Technically spec non-compliant however commercial TTS such as amazon, google and microsoft
+    // don't require the version and just assume 1.1
+    let version = if let Some(v) = version {
+        let version = v.decode_and_unescape_value(reader)?;
+        match version.as_ref() {
+            "1.0" | "1.1" => (),
+            v => bail!("Unsupported SSML spec version: {}", v),
+        }
+        version.to_string()
+    } else {
+        "1.1".to_string()
+    };
 
     let lang = elem.try_get_attribute("xml:lang")?;
     let lang = if let Some(lang) = lang {
@@ -895,7 +899,7 @@ mod tests {
     #[test]
     fn skip_description_text() {
         let text = r#"<?xml version="1.0"?>
-<speak version="1.1" xmlns="http://www.w3.org/2001/10/synthesis"
+<speak xmlns="http://www.w3.org/2001/10/synthesis"
        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        xsi:schemaLocation="http://www.w3.org/2001/10/synthesis
                  http://www.w3.org/TR/speech-synthesis11/synthesis.xsd"
