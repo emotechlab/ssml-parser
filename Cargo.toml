@@ -3,10 +3,12 @@ name = "ssml-parser"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+async = ["async-trait"]
 
 [dependencies]
 anyhow = "1.0.68"
+async-trait = { version = "0.1.68", optional = true }
 http = "0.2.9"
 indexmap = "1.9.2"
 lazy_static = "1.4"
