@@ -161,9 +161,12 @@ impl SsmlParser {
                         let (ty, element) = parse_element(e, &mut reader)?;
                         if ty == SsmlElement::Sub && self.expand_sub {
                             if let ParsedElement::Sub(attrs) = &element {
+                                let text_start = text_buffer.len();
                                 text_buffer.push(' ');
                                 text_buffer.push_str(&attrs.alias);
                                 text_buffer.push(' ');
+                                let text_end = text_buffer.len();
+                                event_log.push(ParserLogEvent::Text((text_start, text_end)));
                             } else {
                                 unreachable!("Sub element wasn't returned for sub type");
                             }
@@ -1005,10 +1008,14 @@ mod tests {
 
         let res = parser.parse(sub).unwrap();
         assert_eq!(res.get_text().trim(), "World wide web consortium");
+        assert_eq!(res.event_log.len(), 3);
+        assert!(matches!(res.event_log[1], ParserLogEvent::Text(_)));
 
         let mut parser = SsmlParserBuilder::default().build().unwrap();
 
         let res = parser.parse(sub).unwrap();
         assert_eq!(res.get_text().trim(), "W3C");
+
+        assert_eq!(res.event_log.len(), 5);
     }
 }
