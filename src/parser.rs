@@ -1,9 +1,9 @@
 use crate::elements::*;
 use crate::*;
 use anyhow::{bail, Context, Result};
+use derive_builder::Builder;
 use lazy_static::lazy_static;
 use mediatype::MediaTypeBuf;
-
 use quick_xml::events::{BytesStart, BytesText, Event};
 use quick_xml::reader::Reader;
 use regex::Regex;
@@ -63,6 +63,12 @@ impl PartialOrd for Span {
     }
 }
 
+#[derive(Clone, Debug, Builder)]
+pub struct SsmlParser {
+    #[builder(default = "false")]
+    expand_sub: bool,
+}
+
 /// We're attaching no meaning to repeated whitespace, but things like space at end
 /// of text and line-breaks are word delimiters and we want to keep at least one in
 /// if there are repeated. But don't want half our transcript to be formatting
@@ -95,122 +101,150 @@ fn push_text(e: BytesText, text_buffer: &mut String) -> Result<()> {
 }
 
 pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
-    let mut reader = Reader::from_str(ssml);
-    reader.check_end_names(true);
-    let mut has_started = false;
-    let mut text_buffer = String::new();
-    let mut open_tags = vec![];
-    let mut tags = vec![];
-    let mut event_log = vec![];
+    SsmlParserBuilder::default().build().unwrap().parse(ssml)
+}
 
-    loop {
-        match reader.read_event()? {
-            Event::Start(e) if e.local_name().as_ref() == b"speak" => {
-                if !has_started {
-                    text_buffer.clear();
-                } else {
-                    bail!("Speak element cannot be placed inside a Speak");
-                }
-                has_started = true;
-
-                let element = parse_speak(e, &reader)?;
-                event_log.push(ParserLogEvent::Open(element.clone()));
-
-                let span = Span {
-                    start: text_buffer.chars().count(),
-                    end: text_buffer.chars().count(),
-                    element,
-                };
-
-                open_tags.push((SsmlElement::Speak, tags.len(), span));
+impl SsmlParser {
+    fn text_should_enter_buffer(&self, element: Option<&SsmlElement>) -> bool {
+        match element {
+            None => true,
+            Some(elem) => {
+                !(self.expand_sub && elem == &SsmlElement::Sub)
+                    && elem.contains_synthesisable_text()
             }
-            Event::Start(e) => {
-                // TODO implement ordering constraints:
-                //
-                // The meta, metadata and lexicon elements must occur before all other elements and text
-                // contained within the root speak element. There are no other ordering constraints on the
-                // elements in this specification.
-                if has_started {
-                    if !(text_buffer.is_empty() || text_buffer.ends_with(char::is_whitespace))
-                        && matches!(e.local_name().as_ref(), b"s" | b"p")
-                    {
-                        // Need to add in a space as they're using tags instead
-                        text_buffer.push(' ');
+        }
+    }
+
+    pub fn parse(&self, ssml: &str) -> Result<Ssml> {
+        let mut reader = Reader::from_str(ssml);
+        reader.check_end_names(true);
+        let mut has_started = false;
+        let mut text_buffer = String::new();
+        let mut open_tags = vec![];
+        let mut tags = vec![];
+        let mut event_log = vec![];
+
+        loop {
+            match reader.read_event()? {
+                Event::Start(e) if e.local_name().as_ref() == b"speak" => {
+                    if !has_started {
+                        text_buffer.clear();
+                    } else {
+                        bail!("Speak element cannot be placed inside a Speak");
                     }
-                    let (ty, element) = parse_element(e, &mut reader)?;
+                    has_started = true;
+
+                    let element = parse_speak(e, &reader)?;
                     event_log.push(ParserLogEvent::Open(element.clone()));
 
-                    let new_span = Span {
+                    let span = Span {
                         start: text_buffer.chars().count(),
                         end: text_buffer.chars().count(),
                         element,
                     };
-                    match open_tags.last().map(|x| &x.0) {
-                        Some(open_type) if !open_type.can_contain(&ty) => {
-                            bail!("{:?} cannot be placed inside {:?}", ty, open_type)
-                        }
-                        _ => {}
-                    }
 
-                    open_tags.push((ty, tags.len(), new_span));
+                    open_tags.push((SsmlElement::Speak, tags.len(), span));
                 }
-            }
-            Event::Comment(_)
-            | Event::CData(_)
-            | Event::Decl(_)
-            | Event::PI(_)
-            | Event::DocType(_) => continue,
-            Event::Eof => break,
-            Event::Text(e) => {
-                // TODO we should stop text contents of tags where insides shouldn't be added to
-                // synthesis output from entering our text buffer
-                let text_start = text_buffer.len();
-                push_text(e, &mut text_buffer)?;
-                let text_end = text_buffer.len();
-                event_log.push(ParserLogEvent::Text((text_start, text_end)));
-            }
-            Event::End(e) => {
-                let name = e.name();
-                let name = from_utf8(name.as_ref())?;
-                if open_tags.is_empty() {
-                    bail!(
-                        "Invalid SSML close tag '{}' presented without open tag.",
-                        name
-                    );
-                }
-                let ssml_elem = SsmlElement::from_str(name).unwrap();
-                if ssml_elem != open_tags[open_tags.len() - 1].0 {
-                    // We have a close tag without an open!
-                } else {
-                    // Okay time to close and remove tag
-                    let (_, pos, mut span) = open_tags.remove(open_tags.len() - 1);
-                    event_log.push(ParserLogEvent::Close(span.element.clone()));
-                    span.end = text_buffer.chars().count();
-                    tags.insert(pos, span);
-                    if !(ssml_elem == SsmlElement::Speak && open_tags.is_empty()) {
-                    } else {
-                        break;
+                Event::Start(e) => {
+                    // TODO implement ordering constraints:
+                    //
+                    // The meta, metadata and lexicon elements must occur before all other elements and text
+                    // contained within the root speak element. There are no other ordering constraints on the
+                    // elements in this specification.
+                    if has_started {
+                        if !(text_buffer.is_empty() || text_buffer.ends_with(char::is_whitespace))
+                            && matches!(e.local_name().as_ref(), b"s" | b"p")
+                        {
+                            // Need to add in a space as they're using tags instead
+                            text_buffer.push(' ');
+                        }
+                        let (ty, element) = parse_element(e, &mut reader)?;
+                        if ty == SsmlElement::Sub && self.expand_sub {
+                            if let ParsedElement::Sub(attrs) = &element {
+                                text_buffer.push(' ');
+                                text_buffer.push_str(&attrs.alias);
+                                text_buffer.push(' ');
+                            } else {
+                                unreachable!("Sub element wasn't returned for sub type");
+                            }
+                        } else {
+                            event_log.push(ParserLogEvent::Open(element.clone()));
+                            match open_tags.last().map(|x| &x.0) {
+                                Some(open_type) if !open_type.can_contain(&ty) => {
+                                    bail!("{:?} cannot be placed inside {:?}", ty, open_type)
+                                }
+                                _ => {}
+                            }
+                        }
+                        let new_span = Span {
+                            start: text_buffer.chars().count(),
+                            end: text_buffer.chars().count(),
+                            element,
+                        };
+
+                        open_tags.push((ty, tags.len(), new_span));
                     }
                 }
-            }
-            Event::Empty(e) => {
-                let (_, element) = parse_element(e, &mut reader)?;
-                let span = Span {
-                    start: text_buffer.chars().count(),
-                    end: text_buffer.chars().count(),
-                    element,
-                };
-                event_log.push(ParserLogEvent::Empty(span.element.clone()));
-                tags.push(span);
+                Event::Comment(_)
+                | Event::CData(_)
+                | Event::Decl(_)
+                | Event::PI(_)
+                | Event::DocType(_) => continue,
+                Event::Eof => break,
+                Event::Text(e) => {
+                    let elem = open_tags.last().map(|x| &x.0);
+                    if self.text_should_enter_buffer(elem) {
+                        let text_start = text_buffer.len();
+                        push_text(e, &mut text_buffer)?;
+                        let text_end = text_buffer.len();
+                        event_log.push(ParserLogEvent::Text((text_start, text_end)));
+                    }
+                }
+                Event::End(e) => {
+                    let name = e.name();
+                    let name = from_utf8(name.as_ref())?;
+                    if open_tags.is_empty() {
+                        bail!(
+                            "Invalid SSML close tag '{}' presented without open tag.",
+                            name
+                        );
+                    }
+                    let ssml_elem = SsmlElement::from_str(name).unwrap();
+                    if ssml_elem != open_tags[open_tags.len() - 1].0 {
+                        // We have a close tag without an open!
+                    } else {
+                        // Okay time to close and remove tag
+                        let (_, pos, mut span) = open_tags.remove(open_tags.len() - 1);
+                        if !(ssml_elem == SsmlElement::Sub && self.expand_sub) {
+                            event_log.push(ParserLogEvent::Close(span.element.clone()));
+                            span.end = text_buffer.chars().count();
+                            tags.insert(pos, span);
+                            if !(ssml_elem == SsmlElement::Speak && open_tags.is_empty()) {
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                }
+                Event::Empty(e) => {
+                    let (_, element) = parse_element(e, &mut reader)?;
+                    let span = Span {
+                        start: text_buffer.chars().count(),
+                        end: text_buffer.chars().count(),
+                        element,
+                    };
+                    event_log.push(ParserLogEvent::Empty(span.element.clone()));
+                    tags.push(span);
+                }
             }
         }
+        tags.sort();
+        Ok(Ssml {
+            text: text_buffer,
+            tags,
+            event_log,
+        })
     }
-    tags.sort();
-    Ok(Ssml {
-        text: text_buffer,
-        tags,
-        event_log,
-    })
 }
 
 fn parse_element(
@@ -945,5 +979,36 @@ mod tests {
         let lang = r#"<speak version="1.1"><lang lang="ja"></lang></speak>"#;
 
         assert!(parse_ssml(lang).is_err());
+    }
+
+    #[test]
+    fn filter_out_elems() {
+        let mut parser = SsmlParserBuilder::default().build().unwrap();
+
+        assert!(parser.text_should_enter_buffer(Some(&SsmlElement::Sub)));
+        assert!(!parser.text_should_enter_buffer(Some(&SsmlElement::Description)));
+
+        parser.expand_sub = true;
+
+        assert!(!parser.text_should_enter_buffer(Some(&SsmlElement::Sub)));
+        assert!(!parser.text_should_enter_buffer(Some(&SsmlElement::Description)));
+    }
+
+    #[test]
+    fn expand_sub() {
+        let mut parser = SsmlParserBuilder::default()
+            .expand_sub(true)
+            .build()
+            .unwrap();
+        let sub =
+            r#"<speak version="1.1"><sub alias="World wide web consortium">W3C</sub></speak>"#;
+
+        let res = parser.parse(sub).unwrap();
+        assert_eq!(res.get_text().trim(), "World wide web consortium");
+
+        let mut parser = SsmlParserBuilder::default().build().unwrap();
+
+        let res = parser.parse(sub).unwrap();
+        assert_eq!(res.get_text().trim(), "W3C");
     }
 }
