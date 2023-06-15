@@ -99,6 +99,70 @@ fn simple_example() {
     //    todo!()
 }
 
+#[test]
+fn break_tag_handling() {
+    let ssml = r#"<break strength='medium' time='2s' />
+        this is a test for parsing of break tags
+        <break strength='Strong' time='.5s' />
+        <break strength='WEak' time='0.5s' />
+        <break strength='x-STRONG' time='200 ms' />
+        <break strength='MeDium' time='200.1 ms' />
+        <break strength='X-Weak' time='412200.123ms' />"#;
+
+    let result = parse_ssml(ssml).unwrap();
+
+    let tags = result.tags().collect::<Vec<_>>();
+    assert_eq!(tags.len(), 6);
+
+    let tag_no = 0;
+    if let ParsedElement::Break(b) = &tags[tag_no].element {
+        assert_eq!(b.time.unwrap(), TimeDesignation::Seconds(2.0));
+        assert_eq!(b.strength.unwrap(), Strength::Medium);
+    } else {
+        panic!("Tag {:?} wrong {:?}", tag_no, tags[tag_no]);
+    }
+
+    let tag_no = 1;
+    if let ParsedElement::Break(b) = &tags[tag_no].element {
+        assert_eq!(b.time.unwrap(), TimeDesignation::Seconds(0.5));
+        assert_eq!(b.strength.unwrap(), Strength::Strong);
+    } else {
+        panic!("Tag {:?} wrong {:?}", tag_no, tags[tag_no]);
+    }
+
+    let tag_no = 2;
+    if let ParsedElement::Break(b) = &tags[tag_no].element {
+        assert_eq!(b.time.unwrap(), TimeDesignation::Seconds(0.5));
+        assert_eq!(b.strength.unwrap(), Strength::Weak);
+    } else {
+        panic!("Tag {:?} wrong {:?}", tag_no, tags[tag_no]);
+    }
+
+    let tag_no = 3;
+    if let ParsedElement::Break(b) = &tags[tag_no].element {
+        assert_eq!(b.time.unwrap(), TimeDesignation::Milliseconds(200.0));
+        assert_eq!(b.strength.unwrap(), Strength::ExtraStrong);
+    } else {
+        panic!("Tag {:?} wrong {:?}", tag_no, tags[tag_no]);
+    }
+
+    let tag_no = 4;
+    if let ParsedElement::Break(b) = &tags[tag_no].element {
+        assert_eq!(b.time.unwrap(), TimeDesignation::Milliseconds(200.1));
+        assert_eq!(b.strength.unwrap(), Strength::Medium);
+    } else {
+        panic!("Tag {:?} wrong {:?}", tag_no, tags[tag_no]);
+    }
+
+    let tag_no = 5;
+    if let ParsedElement::Break(b) = &tags[tag_no].element {
+        assert_eq!(b.time.unwrap(), TimeDesignation::Milliseconds(412200.123));
+        assert_eq!(b.strength.unwrap(), Strength::ExtraWeak);
+    } else {
+        panic!("Tag {:?} wrong {:?}", tag_no, tags[tag_no]);
+    }
+}
+
 /// Example SSML taken from Appendix E in the SSML specification which
 /// can be found [here](https://www.w3.org/TR/speech-synthesis11). All copied
 /// sections will be marked with:

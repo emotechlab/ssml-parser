@@ -999,7 +999,7 @@ mod tests {
 
     #[test]
     fn expand_sub() {
-        let mut parser = SsmlParserBuilder::default()
+        let parser = SsmlParserBuilder::default()
             .expand_sub(true)
             .build()
             .unwrap();
@@ -1011,7 +1011,7 @@ mod tests {
         assert_eq!(res.event_log.len(), 3);
         assert!(matches!(res.event_log[1], ParserLogEvent::Text(_)));
 
-        let mut parser = SsmlParserBuilder::default().build().unwrap();
+        let parser = SsmlParserBuilder::default().build().unwrap();
 
         let res = parser.parse(sub).unwrap();
         assert_eq!(res.get_text().trim(), "W3C");

@@ -536,7 +536,7 @@ impl Display for LexiconAttributes {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
 pub enum TimeDesignation {
     Seconds(f32),
     Milliseconds(f32),
@@ -560,7 +560,7 @@ impl FromStr for TimeDesignation {
 
     fn from_str(time: &str) -> Result<Self, Self::Err> {
         lazy_static! {
-            static ref TIME_RE: Regex = Regex::new(r"^\+?((?:\d*\.)?\d)+(s|ms)$").unwrap();
+            static ref TIME_RE: Regex = Regex::new(r"^\+?((?:\d*\.)?\d+)\s*(s|ms)$").unwrap();
         }
         let caps = TIME_RE
             .captures(time)
@@ -874,7 +874,7 @@ impl FromStr for Strength {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
+        match s.to_lowercase().as_ref() {
             "none" => Ok(Self::No),
             "x-weak" => Ok(Self::ExtraWeak),
             "weak" => Ok(Self::Weak),
