@@ -1,31 +1,60 @@
+//! The main focus on this crate is parsing not writing SSML, although there is some basic writing
+//! support to support Emotech applications. The main function people will want to use is
+//! `parse_ssml` which returns an `Ssml` structure which breaks down the text into it's elements.
+//!
+//! Below is a simple example:
+//!
+//! ```
+//! use ssml_parser::parse_ssml;
+//!
+//! let ssml = r#"<?xml version="1.0"?>
+//!     <speak version="1.1"
+//!            xmlns="http://www.w3.org/2001/10/synthesis"
+//!            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+//!            xsi:schemaLocation="http://www.w3.org/2001/10/synthesis
+//!                        http://www.w3.org/TR/speech-synthesis11/synthesis.xsd"
+//!            xml:lang="en-US">
+//!       <p>
+//!         <s>You have 4 new messages.</s>
+//!         <s>The first is from Stephanie Williams and arrived at <break/> 3:45pm.
+//!         </s>
+//!         <s>
+//!           The subject is <prosody rate="20%">ski trip</prosody>
+//!         </s>
+//!       </p>
+//!     </speak>"#;
+//!
+//!  let result = parse_ssml(ssml).unwrap();
+//!
+//!  // We can now see the text with tags removed:
+//!
+//!  println!("{}", result.get_text());
+//!
+//!  // And can loop over all the SSML tags and get their character indexes:
+//!
+//!  for tag in result.tags() {
+//!     println!("{:?}", tag);
+//!  }
+//! ```
 use crate::{elements::SsmlElement, parser::Span};
 use elements::ParsedElement;
 use std::fmt;
 use std::ops::FnMut;
-/// Valid SSML:
-///
-/// ```xml
-/// <speak>
-/// Here are <say-as interpret-as="characters">SSML</say-as> samples.
-/// I can pause <break time="3s"/>.
-/// I can play a sound
-/// <audio src="https://www.example.com/MY_MP3_FILE.mp3">didn't get your MP3 audio file</audio>.
-/// I can speak in cardinals. Your number is <say-as interpret-as="cardinal">10</say-as>.
-/// Or I can speak in ordinals. You are <say-as interpret-as="ordinal">10</say-as> in line.
-/// Or I can even speak in digits. The digits for ten are <say-as interpret-as="characters">10</say-as>.
-/// I can also substitute phrases, like the <sub alias="World Wide Web Consortium">W3C</sub>.
-/// Finally, I can speak a paragraph with two sentences.
-/// <p><s>This is sentence one.</s><s>This is sentence two.</s></p
-/// </speak>
-/// ```
+
+// Public re-export
+pub use crate::parser::parse_ssml;
+
 pub mod elements;
 pub mod parser;
 
 /// Holds parsed SSML string with the text minus tags and the tag information
 #[derive(Clone, Debug)]
 pub struct Ssml {
+    /// Text with all tags removed
     text: String,
+    /// Vector of tags stored in a depth first search ordering
     pub(crate) tags: Vec<Span>,
+    /// Simple parse tree to represent the XML document structure
     pub(crate) event_log: ParserLog,
 }
 
@@ -39,21 +68,34 @@ pub struct TransformedSsml {
     pub synthesisable_text: String,
 }
 
+/// List of XML events representing the document in the order it was parsed.
 type ParserLog = Vec<ParserLogEvent>;
 
+/// Represents the XML document structure
 #[derive(Clone, Debug)]
 pub(crate) enum ParserLogEvent {
+    /// Text within tags with the start and end character indices
     Text((usize, usize)),
+    /// An XML open tag
     Open(ParsedElement),
+    /// An XML close tag
     Close(ParsedElement),
+    /// An empty XML i.e. `<break/>`
     Empty(ParsedElement),
 }
 
+/// An owned version of the parser event, this is created to allow for the asynchronous map
+/// transform of the tree without worrying about ownership issues so will take an owned copy of
+/// substrings of the tag-less text.
 #[derive(Clone, Debug)]
 pub enum ParserEvent {
+    /// Some text within a pair of XML tags
     Text(String),
+    /// An XML open tag
     Open(ParsedElement),
+    /// An XML close tag
     Close(ParsedElement),
+    /// An empty XML i.e. `<break/>`
     Empty(ParsedElement),
 }
 
@@ -89,19 +131,27 @@ impl fmt::Display for ParserEvent {
 }
 
 impl Ssml {
+    /// Gets a version of the text with all the SSML tags stripped
     pub fn get_text(&self) -> &str {
         &self.text
     }
 
+    /// From a given span with start/end characters return the text within that span.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if span exceeds the bounds of the text.
     pub fn get_text_from_span(&self, span: &Span) -> &str {
         assert!(span.end <= self.text.len() && span.end >= span.start);
         &self.text[span.start..span.end]
     }
 
+    /// Get an iterator over the SSML tags - traversed depth first.
     pub fn tags(&self) -> impl Iterator<Item = &Span> {
         self.tags.iter()
     }
 
+    /// Write out the SSML text again - mainly used for testing correctness of implementation.
     pub fn write_ssml(&self) -> String {
         let mut ssml_str = String::new();
 

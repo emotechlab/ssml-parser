@@ -1,3 +1,6 @@
+//! Handles parsing SSML input and returning our `Ssml` structure, contains a simple parse function
+//! that sets up the parser with the default options and hides it as well as a parser type a user
+//! can construct themselves to have more control over parsing.
 use crate::elements::*;
 use crate::*;
 use anyhow::{bail, Context, Result};
@@ -63,8 +66,11 @@ impl PartialOrd for Span {
     }
 }
 
+/// SSML parser, contains options used during parsing to determine how to handle certain elements.
 #[derive(Clone, Debug, Builder)]
 pub struct SsmlParser {
+    /// If true expand substitution elements replacing them with the text to substitute in the
+    /// attribute.
     #[builder(default = "false")]
     expand_sub: bool,
 }
@@ -100,11 +106,14 @@ fn push_text(e: BytesText, text_buffer: &mut String) -> Result<()> {
     Ok(())
 }
 
+/// Parses SSML with a default `SsmlParser`
 pub fn parse_ssml(ssml: &str) -> Result<Ssml> {
     SsmlParserBuilder::default().build().unwrap().parse(ssml)
 }
 
 impl SsmlParser {
+    /// Returns true if the text should be added to the text buffer. If text isn't synthesisable
+    /// then it won't be entered.
     fn text_should_enter_buffer(&self, element: Option<&SsmlElement>) -> bool {
         match element {
             None => true,
@@ -115,6 +124,7 @@ impl SsmlParser {
         }
     }
 
+    /// Parse the given SSML string
     pub fn parse(&self, ssml: &str) -> Result<Ssml> {
         let mut reader = Reader::from_str(ssml);
         reader.check_end_names(true);
@@ -250,6 +260,8 @@ impl SsmlParser {
     }
 }
 
+/// Parse an SSML element, this returns an `SsmlElement` as a tag to represent the SSML and the
+/// `ParsedElement` with the attributes to make conditions no the ssml type easier to write.
 fn parse_element(
     elem: BytesStart,
     reader: &mut Reader<&[u8]>,

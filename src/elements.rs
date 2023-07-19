@@ -9,36 +9,6 @@
 //! notice will be placed on the top level type and not each field for conciseness
 //! but keep in mind the fields will also be taken from the same section of the
 //! standard.
-
-// p, audio, break, emphasis, lang, lookup, mark, phoneme, prosody, say-as, sub, s, token, voice, w.
-//
-// p
-// Audio https://www.w3.org/TR/speech-synthesis11/#edef_audio
-
-// Speak can contain:
-// * audio - allows for inserting prerecorded audio into output
-// * break - controls the pausing or other prosodic boundaries between tokens
-// * emphasis - requests that the contained text be spoken with emphasis (also referred to as prominence or stress)
-// * lang
-// * lexicon
-// * lookup
-// * mark
-// * meta - metadata associated with document
-// * metadata - recommended to be RDF about the properties/relationships in document
-// * p - Paragraph to speak
-// * phoneme - provides a phonemic/phonetic pronunciation for the contained text
-// * prosody - permits control of the pitch, speaking rate and volume of the speech output. The attributes, all optional, are:
-// * say-as
-// * sub
-// * s - Sentence to speak
-// * token - help segmentation of languages that don't separate via whitespace or things like syllables (can apply expression to just a syllable_
-// * voice - production element that requests a change in speaking voice
-// * w
-//
-//
-// The token element can only be contained in the following elements: audio, emphasis, lang, lookup, prosody, speak, p, s, voice.
-//
-// The say-as element has three attributes: interpret-as, format, and detail. The interpret-as attribute is always required; the other two attributes are optional. The legal values for the format attribute depend on the value of the interpret-as attribute.
 use anyhow::{bail, Context};
 use lazy_static::lazy_static;
 use quick_xml::escape::escape;
@@ -49,41 +19,50 @@ use std::fmt::{self, Display};
 use std::num::NonZeroUsize;
 use std::str::FromStr;
 
-// Structural elements
-// * speak
-// * lexicon
-// * lookup
-// * meta
-// * metadata
-// * p/s/token/word
-// * say-as
-// * phoneme
-// * sub
-// * lang
-//
-
+/// Type of the SSML element
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum SsmlElement {
+    /// The `<speak></speak>` element.
     Speak,
+    /// The `<lexicon/>` element.
     Lexicon,
+    /// The `<lookup></lookup>` element.
     Lookup,
+    /// The `<meta/> element.
     Meta,
+    /// The `<metadata></metadata>` element.
     Metadata,
+    /// The `<p></p>` element.
     Paragraph,
+    /// The `<s></s>` element.
     Sentence,
+    /// The `<token></token>` element.
     Token,
+    /// The `<word></word>` element.
     Word,
+    /// The `<say-as></say-as>` element.
     SayAs,
+    /// The `<phoneme></phoneme>` element.
     Phoneme,
+    /// The `<sub></sub>` element.
     Sub,
+    /// The `<lang></lang>` element.
     Lang,
+    /// The `<voice></voice>` element.
     Voice,
+    /// The `<emphasis></emphasis>` element.
     Emphasis,
+    /// The `<break/>` element.
     Break,
+    /// The `<prosody></prosody>` element.
     Prosody,
+    /// The `<audio></audio>` element.
     Audio,
+    /// The `<mark/>` element.
     Mark,
+    /// The `<desc></desc>` element.
     Description,
+    /// Custom elements not defined in the spec, the element name is stored in the given string.
     Custom(String),
 }
 
@@ -139,11 +118,13 @@ impl SsmlElement {
         }
     }
 
+    /// Returns true if an SSML element is allowed within a paragraph `<p>...</p>`
     #[inline(always)]
     fn allowed_in_paragraph(&self) -> bool {
         matches!(self, Self::Sentence) || self.allowed_in_sentence()
     }
 
+    /// Returns true if an SSML element is allowed within a sentence `<s>...</s>`
     #[inline(always)]
     fn allowed_in_sentence(&self) -> bool {
         matches!(
@@ -165,6 +146,7 @@ impl SsmlElement {
         )
     }
 
+    /// Returns true if an SSML element is allowed within `<speak></speak>`
     #[inline(always)]
     fn allowed_in_speak(&self) -> bool {
         self != &Self::Speak
@@ -186,7 +168,8 @@ impl SsmlElement {
         )
     }
 
-    /// Returns true if the text inside should be processed by the speech synthesiser.
+    /// Returns true if the text inside should be processed by the speech synthesiser. Returns
+    /// false for custom elements.
     #[inline(always)]
     pub(crate) fn contains_synthesisable_text(&self) -> bool {
         !matches!(
@@ -234,34 +217,59 @@ impl Display for SsmlElement {
     }
 }
 
+/// Enum representing the parsed element, each element with attributes allowed also contains an
+/// object for it's attributes.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParsedElement {
+    /// The `<speak></speak>` element and given attributes.
     Speak(SpeakAttributes),
+    /// The `<lexicon/>` element and given attributes.
     // TODO: spec mentions `lexicon` can only be immediate children of `speak`. enforce this check
     Lexicon(LexiconAttributes),
+    /// The `<lookup></lookup>` element and given attributes.
     Lookup(LookupAttributes),
+    /// The `<meta/> element and given attributes.
     Meta(MetaAttributes),
+    /// The `<metadata></metadata>` element.
     Metadata,
+    /// The `<p></p>` element.
     Paragraph,
+    /// The `<s></s>` element.
     Sentence,
+    /// The `<token></token>` element and given attributes.
     Token(TokenAttributes),
+    /// The `<word></word>` element and given attributes.
     // `w` element is just an alias for `token`
     Word(TokenAttributes),
+    /// The `<say-as></say-as>` element and given attributes.
     SayAs(SayAsAttributes),
+    /// The `<phoneme></phoneme>` element and given attributes.
     Phoneme(PhonemeAttributes),
+    /// The `<sub></sub>` element and given attributes.
     Sub(SubAttributes),
+    /// The `<lang></lang>` element and given attributes.
     Lang(LangAttributes),
+    /// The `<voice></voice>` element and given attributes.
     Voice(VoiceAttributes),
+    /// The `<emphasis></emphasis>` element and given attributes.
     Emphasis(EmphasisAttributes),
+    /// The `<break/>` element and given attributes.
     Break(BreakAttributes),
+    /// The `<prosody></prosody>` element and given attributes.
     Prosody(ProsodyAttributes),
+    /// The `<audio></audio>` element and given attributes.
     Audio(AudioAttributes),
+    /// The `<mark/>` element and given attributes.
     Mark(MarkAttributes),
+    /// The `<desc></desc>` element and given attributes.
     Description(String),
+    /// Custom elements not defined in the spec, the element name is stored in the given string and
+    /// any attributes in the map.
     Custom((String, BTreeMap<String, String>)),
 }
 
 impl ParsedElement {
+    /// From an element get the XML attribute string - this is used for writing the SSML back out
     pub fn attribute_string(&self) -> String {
         use ParsedElement::*;
 
@@ -296,10 +304,12 @@ impl ParsedElement {
         }
     }
 
+    /// Returns true if an SSML element can contain tags
     pub fn can_contain_tags(&self) -> bool {
         SsmlElement::from(self).can_contain_tags()
     }
 
+    /// Returns true if an SSML element can contain another element
     pub fn can_contain(&self, other: &Self) -> bool {
         SsmlElement::from(self).can_contain(&SsmlElement::from(other))
     }
@@ -333,6 +343,14 @@ impl From<&ParsedElement> for SsmlElement {
     }
 }
 
+/// The Speech Synthesis Markup Language is an XML application. The root element is speak.
+///
+/// N.B. According to the standard version is a required attribute, however we haven't found any
+/// TTS providers that enforce that rule so implement a laxer parsing for compatibility with the
+/// wider ecosystem.
+///
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct SpeakAttributes {
     pub lang: Option<String>,
@@ -467,19 +485,6 @@ impl FromStr for SsmlElement {
     }
 }
 
-// Prosody and style
-// * voice
-// * emphasis
-// * break
-// * prosody
-
-// Other
-// * audio
-// * mark
-// * desc
-
-// Custom
-
 /// An SSML document MAY reference one or more lexicon documents. A lexicon
 /// document is located by a URI with an OPTIONAL media type and is assigned a
 /// name that is unique in the SSML document. Any number of lexicon elements MAY
@@ -536,6 +541,8 @@ impl Display for LexiconAttributes {
     }
 }
 
+/// For times SSML only uses seconds or milliseconds in the form "%fs" "%fs", this handles parsing
+/// these times
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
 pub enum TimeDesignation {
     Seconds(f32),
