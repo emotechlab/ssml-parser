@@ -361,6 +361,20 @@ pub struct SpeakAttributes {
     pub xml_root_attrs: BTreeMap<String, String>,
 }
 
+#[cfg(test)]
+impl fake::Dummy<fake::Faker> for SpeakAttributes {
+    fn dummy_with_rng<R: rand::Rng + ?Sized>(f: &fake::Faker, rng: &mut R) -> Self {
+        use fake::Fake;
+        Self {
+            lang: f.fake_with_rng(rng),
+            base: f.fake_with_rng(rng),
+            on_lang_failure: f.fake_with_rng(rng),
+            version: "1.1".to_string(),
+            xml_root_attrs: f.fake_with_rng(rng),
+        }
+    }
+}
+
 impl Display for SpeakAttributes {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, " version=\"{}\"", escape(&self.version))?;
@@ -382,6 +396,7 @@ impl Display for SpeakAttributes {
 
 /// The lang element is used to specify the natural language of the content.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub struct LangAttributes {
     pub lang: String,
     pub on_lang_failure: Option<OnLanguageFailure>,
@@ -407,6 +422,7 @@ impl Display for LangAttributes {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub enum OnLanguageFailure {
     /// If a voice exists that can speak the language, the synthesis processor
     /// will switch to that voice and speak the content. Otherwise, the
@@ -544,6 +560,7 @@ impl Display for LexiconAttributes {
 /// For times SSML only uses seconds or milliseconds in the form "%fs" "%fs", this handles parsing
 /// these times
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub enum TimeDesignation {
     Seconds(f32),
     Milliseconds(f32),
@@ -618,6 +635,7 @@ impl FromStr for TimeDesignation {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub struct LookupAttributes {
     pub lookup_ref: String,
 }
@@ -657,6 +675,23 @@ pub struct MetaAttributes {
     pub content: String,
 }
 
+#[cfg(test)]
+impl fake::Dummy<fake::Faker> for MetaAttributes {
+    fn dummy_with_rng<R: rand::Rng + ?Sized>(f: &fake::Faker, rng: &mut R) -> Self {
+        use fake::Fake;
+        let (name, http_equiv) = if rng.gen_bool(0.5) {
+            (None, Some(f.fake_with_rng(rng)))
+        } else {
+            (Some(f.fake_with_rng(rng)), None)
+        };
+        Self {
+            name,
+            http_equiv,
+            content: f.fake_with_rng(rng),
+        }
+    }
+}
+
 impl Display for MetaAttributes {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, " content=\"{}\"", escape(&self.content))?;
@@ -688,6 +723,7 @@ impl Display for MetaAttributes {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub struct TokenAttributes {
     /// `role` is an OPTIONAL defined attribute on the token element. The role
     /// attribute takes as its value one or more white space separated QNames
@@ -729,6 +765,7 @@ impl Display for TokenAttributes {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub struct SayAsAttributes {
     /// The interpret-as attribute indicates the content type of the contained text construct.
     /// Specifying the content type helps the synthesis processor to distinguish and interpret
@@ -764,6 +801,7 @@ impl Display for SayAsAttributes {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub enum PhonemeAlphabet {
     Ipa,
     Other(String),
@@ -802,6 +840,7 @@ impl FromStr for PhonemeAlphabet {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub struct PhonemeAttributes {
     /// The ph attribute is a required attribute that specifies the phoneme/phone
     /// string.
@@ -845,6 +884,7 @@ impl Display for PhonemeAttributes {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub enum Strength {
     /// None value - do not insert a break here
     No,
@@ -866,7 +906,7 @@ impl Display for Strength {
             f,
             "{}",
             match self {
-                Self::No => "no",
+                Self::No => "none",
                 Self::ExtraWeak => "x-weak",
                 Self::Weak => "weak",
                 Self::Medium => "medium",
@@ -896,6 +936,7 @@ impl FromStr for Strength {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub enum PitchStrength {
     /// Extra low (x-low)
     XLow,
@@ -944,6 +985,7 @@ impl Display for PitchStrength {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub enum VolumeStrength {
     /// Silent
     Silent,
@@ -996,6 +1038,7 @@ impl fmt::Display for VolumeStrength {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub enum RateStrength {
     /// X-slow
     XSlow,
@@ -1041,13 +1084,33 @@ impl fmt::Display for RateStrength {
     }
 }
 
+/// Sign for relative values (positive or negative).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(test, derive(fake::Dummy))]
+pub enum Sign {
+    /// Positive relative change.
+    Plus,
+    /// Negative relative change.
+    Minus,
+}
+
+impl fmt::Display for Sign {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Plus => write!(fmt, "+"),
+            Self::Minus => write!(fmt, "-"),
+        }
+    }
+}
+
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub enum PitchRange {
     Strength(PitchStrength), // low, medium high etc
     Frequency(f32),
-    RelativeChange((f32, char, Unit)),
+    RelativeChange((f32, Sign, Unit)),
 }
 
 impl FromStr for PitchRange {
@@ -1067,13 +1130,13 @@ impl FromStr for PitchRange {
                         if value.starts_with('-') {
                             Ok(Self::RelativeChange((
                                 value.strip_suffix("Hz").unwrap().parse::<f32>()? * -1.0,
-                                '-',
+                                Sign::Minus,
                                 Unit::Hz,
                             )))
                         } else {
                             Ok(Self::RelativeChange((
                                 value.strip_suffix("Hz").unwrap().parse::<f32>()?,
-                                '+',
+                                Sign::Plus,
                                 Unit::Hz,
                             )))
                         }
@@ -1087,39 +1150,39 @@ impl FromStr for PitchRange {
                         if value.starts_with('-') {
                             Ok(Self::RelativeChange((
                                 value.strip_suffix('%').unwrap().parse::<f32>()? * -1.0,
-                                '-',
+                                Sign::Minus,
                                 Unit::Percentage,
                             )))
                         } else {
                             Ok(Self::RelativeChange((
                                 value.strip_suffix('%').unwrap().parse::<f32>()?,
-                                '+',
+                                Sign::Plus,
                                 Unit::Percentage,
                             )))
                         }
                     } else {
-                        bail!("Unrecognised value {}", "Pitch value unrecognised");
+                        bail!("Unrecognised value {}", value);
                     }
                 } else if value.ends_with("st") {
                     if value.starts_with('+') || value.starts_with('-') {
                         if value.starts_with('-') {
                             Ok(Self::RelativeChange((
                                 value.strip_suffix("st").unwrap().parse::<f32>()? * -1.0,
-                                '-',
+                                Sign::Minus,
                                 Unit::St,
                             )))
                         } else {
                             Ok(Self::RelativeChange((
                                 value.strip_suffix("st").unwrap().parse::<f32>()?,
-                                '+',
+                                Sign::Plus,
                                 Unit::St,
                             )))
                         }
                     } else {
-                        bail!("Unrecognised value {}", "Pitch value unrecognised");
+                        bail!("Unrecognised value {}", value);
                     }
                 } else {
-                    bail!("Unrecognised value {}", "Pitch value unrecognised");
+                    bail!("Unrecognised value {}", value);
                 }
             }
             e => bail!("Unrecognised value {}", e),
@@ -1142,6 +1205,7 @@ impl fmt::Display for PitchRange {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub enum VolumeRange {
     Strength(VolumeStrength), // "silent", "x-soft", "soft", "medium", "loud", "x-loud", default
     Decibel(f32),
@@ -1179,6 +1243,7 @@ impl fmt::Display for VolumeRange {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub enum RateRange {
     Strength(RateStrength), // "x-slow", "slow", "medium", "fast", "x-fast", or "default"
     Percentage(PositiveNumber),
@@ -1230,6 +1295,7 @@ impl fmt::Display for RateRange {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub enum ContourElement {
     Element((f32, PitchRange)),
 }
@@ -1277,6 +1343,7 @@ impl fmt::Display for ContourElement {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub enum PitchContour {
     Elements(Vec<ContourElement>),
 }
@@ -1297,7 +1364,8 @@ impl FromStr for PitchContour {
 
                 Ok(Self::Elements(pitch_contour_elements))
             }
-            e => bail!("Unrecognised value {}", e),
+            e if !e.trim().is_empty() => bail!("Unrecognised value {}", e),
+            _ => Ok(Self::Elements(pitch_contour_elements)), // No op on pitch contouring
         }
     }
 }
@@ -1332,6 +1400,17 @@ impl fmt::Display for PitchContour {
 pub enum PositiveNumber {
     FloatNumber(f32),
     RoundNumber(isize),
+}
+
+#[cfg(test)]
+impl fake::Dummy<fake::Faker> for PositiveNumber {
+    fn dummy_with_rng<R: rand::Rng + ?Sized>(_: &fake::Faker, rng: &mut R) -> PositiveNumber {
+        if rng.gen_bool(0.5) {
+            Self::FloatNumber(rng.gen_range(0.1..100.0))
+        } else {
+            Self::RoundNumber(rng.gen_range(1..100))
+        }
+    }
 }
 
 impl FromStr for PositiveNumber {
@@ -1376,15 +1455,16 @@ impl fmt::Display for PositiveNumber {
     }
 }
 
-/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
-/// All Rights Reserved._
+/// Unit used to measure relative changes in values, this is either percentage or for pitches can
+/// be measured in semitones or Hertz.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub enum Unit {
-    /// Strong
+    /// Hertz
     Hz,
-    /// Moderate (default)
+    /// Semi-tone
     St,
-    /// None
+    /// Percentage
     Percentage,
 }
 
@@ -1401,6 +1481,7 @@ impl fmt::Display for Unit {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub enum EmphasisLevel {
     /// Strong
     Strong,
@@ -1452,6 +1533,7 @@ impl FromStr for EmphasisLevel {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub struct BreakAttributes {
     ///  The strength attribute is an optional attribute having one of the following
     ///  values: "none", "x-weak", "weak", "medium" (default value), "strong", or
@@ -1486,6 +1568,7 @@ impl Display for BreakAttributes {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub struct ProsodyAttributes {
     /// pitch: the baseline pitch for the contained text. Although the exact meaning of "baseline pitch"
     /// will vary across synthesis processors, increasing/decreasing this value will typically increase/decrease
@@ -1576,6 +1659,7 @@ impl Display for ProsodyAttributes {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub struct MarkAttributes {
     pub name: String,
 }
@@ -1589,6 +1673,7 @@ impl Display for MarkAttributes {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub struct EmphasisAttributes {
     /// the optional level attribute indicates the strength of emphasis to be applied. Defined
     /// values are "strong", "moderate", "none" and "reduced". The default level is "moderate".
@@ -1623,6 +1708,7 @@ impl Display for EmphasisAttributes {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub struct SubAttributes {
     pub alias: String,
 }
@@ -1634,6 +1720,7 @@ impl Display for SubAttributes {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub enum Gender {
     Male,
     Female,
@@ -1670,6 +1757,7 @@ impl FromStr for Gender {
 /// A language accent pair, this will be a language (required) and an optional accent in which to
 /// speak the language.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub struct LanguageAccentPair {
     pub lang: String,
     pub accent: Option<String>,
@@ -1893,6 +1981,7 @@ impl Display for VoiceAttributes {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub enum FetchHint {
     Prefetch,
     Safe,
@@ -1993,5 +2082,309 @@ impl Display for AudioAttributes {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parser::*;
+    use fake::{Fake, Faker};
+    use quick_xml::events::Event;
+    use quick_xml::reader::Reader;
+
+    // If we take one of our elements and write it out again in theory we should reparse it as the
+    // same element!
+
+    #[test]
+    fn speak_conversions() {
+        // lets try 30 times
+        for _ in 0..30 {
+            let speak: SpeakAttributes = Faker.fake();
+
+            let xml = format!(
+                "<{} {}></{}>",
+                SsmlElement::Speak,
+                speak.to_string(),
+                SsmlElement::Speak
+            );
+            println!("{}", xml);
+
+            let mut reader = Reader::from_reader(xml.as_ref());
+            let event = reader.read_event().unwrap();
+            println!("{:?}", event);
+            if let Event::Start(bs) = event {
+                let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
+
+                assert_eq!(ssml_element, SsmlElement::Speak);
+                assert_eq!(parsed_element, ParsedElement::Speak(speak));
+            } else {
+                panic!("Didn't get expected event");
+            }
+        }
+    }
+
+    #[test]
+    fn lang_conversions() {
+        for _ in 0..30 {
+            let lang: LangAttributes = Faker.fake();
+
+            let xml = format!("<{} {}></{}>", SsmlElement::Lang, lang, SsmlElement::Lang);
+
+            let mut reader = Reader::from_reader(xml.as_ref());
+            let event = reader.read_event().unwrap();
+            println!("{:?}", event);
+            if let Event::Start(bs) = event {
+                let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
+
+                assert_eq!(ssml_element, SsmlElement::Lang);
+                assert_eq!(parsed_element, ParsedElement::Lang(lang));
+            } else {
+                panic!("Didn't get expected event");
+            }
+        }
+    }
+
+    #[test]
+    fn lookup_conversions() {
+        for _ in 0..30 {
+            let look: LookupAttributes = Faker.fake();
+
+            let xml = format!(
+                "<{} {}></{}>",
+                SsmlElement::Lookup,
+                look,
+                SsmlElement::Lookup
+            );
+
+            let mut reader = Reader::from_reader(xml.as_ref());
+            let event = reader.read_event().unwrap();
+            println!("{:?}", event);
+            if let Event::Start(bs) = event {
+                let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
+
+                assert_eq!(ssml_element, SsmlElement::Lookup);
+                assert_eq!(parsed_element, ParsedElement::Lookup(look));
+            } else {
+                panic!("Didn't get expected event");
+            }
+        }
+    }
+
+    #[test]
+    fn meta_conversions() {
+        for _ in 0..30 {
+            let meta: MetaAttributes = Faker.fake();
+
+            let xml = format!("<{} {}></{}>", SsmlElement::Meta, meta, SsmlElement::Meta);
+
+            let mut reader = Reader::from_reader(xml.as_ref());
+            let event = reader.read_event().unwrap();
+            println!("{:?}", event);
+            if let Event::Start(bs) = event {
+                let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
+
+                assert_eq!(ssml_element, SsmlElement::Meta);
+                assert_eq!(parsed_element, ParsedElement::Meta(meta));
+            } else {
+                panic!("Didn't get expected event");
+            }
+        }
+    }
+
+    #[test]
+    fn token_conversions() {
+        for _ in 0..30 {
+            let token: TokenAttributes = Faker.fake();
+
+            let xml = format!(
+                "<{} {}></{}>",
+                SsmlElement::Token,
+                token,
+                SsmlElement::Token
+            );
+
+            let mut reader = Reader::from_reader(xml.as_ref());
+            let event = reader.read_event().unwrap();
+            println!("{:?}", event);
+            if let Event::Start(bs) = event {
+                let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
+
+                assert_eq!(ssml_element, SsmlElement::Token);
+                assert_eq!(parsed_element, ParsedElement::Token(token));
+            } else {
+                panic!("Didn't get expected event");
+            }
+        }
+    }
+
+    #[test]
+    fn say_as_conversions() {
+        for _ in 0..30 {
+            let say_as: SayAsAttributes = Faker.fake();
+
+            let xml = format!(
+                "<{} {}></{}>",
+                SsmlElement::SayAs,
+                say_as,
+                SsmlElement::SayAs
+            );
+
+            let mut reader = Reader::from_reader(xml.as_ref());
+            let event = reader.read_event().unwrap();
+            println!("{:?}", event);
+            if let Event::Start(bs) = event {
+                let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
+
+                assert_eq!(ssml_element, SsmlElement::SayAs);
+                assert_eq!(parsed_element, ParsedElement::SayAs(say_as));
+            } else {
+                panic!("Didn't get expected event");
+            }
+        }
+    }
+
+    #[test]
+    fn phoneme_conversions() {
+        for _ in 0..30 {
+            let attr: PhonemeAttributes = Faker.fake();
+
+            let xml = format!(
+                "<{} {}></{}>",
+                SsmlElement::Phoneme,
+                attr,
+                SsmlElement::Phoneme
+            );
+
+            let mut reader = Reader::from_reader(xml.as_ref());
+            let event = reader.read_event().unwrap();
+            println!("{:?}", event);
+            if let Event::Start(bs) = event {
+                let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
+
+                assert_eq!(ssml_element, SsmlElement::Phoneme);
+                assert_eq!(parsed_element, ParsedElement::Phoneme(attr));
+            } else {
+                panic!("Didn't get expected event");
+            }
+        }
+    }
+
+    #[test]
+    fn break_conversions() {
+        for _ in 0..30 {
+            let attr: BreakAttributes = Faker.fake();
+
+            let xml = format!("<{} {}></{}>", SsmlElement::Break, attr, SsmlElement::Break);
+
+            let mut reader = Reader::from_reader(xml.as_ref());
+            let event = reader.read_event().unwrap();
+            println!("{:?}", event);
+            if let Event::Start(bs) = event {
+                let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
+
+                assert_eq!(ssml_element, SsmlElement::Break);
+                assert_eq!(parsed_element, ParsedElement::Break(attr));
+            } else {
+                panic!("Didn't get expected event");
+            }
+        }
+    }
+
+    #[test]
+    fn prosody_conversions() {
+        // Prosody has a lot more area to cover!
+        for _ in 0..50 {
+            let attr: ProsodyAttributes = Faker.fake();
+
+            let xml = format!(
+                "<{} {}></{}>",
+                SsmlElement::Prosody,
+                attr,
+                SsmlElement::Prosody
+            );
+
+            println!("{}", xml);
+
+            let mut reader = Reader::from_reader(xml.as_ref());
+            let event = reader.read_event().unwrap();
+            println!("{:?}", event);
+            if let Event::Start(bs) = event {
+                let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
+
+                assert_eq!(ssml_element, SsmlElement::Prosody);
+                assert_eq!(parsed_element, ParsedElement::Prosody(attr));
+            } else {
+                panic!("Didn't get expected event");
+            }
+        }
+    }
+
+    #[test]
+    fn mark_conversions() {
+        for _ in 0..30 {
+            let attr: MarkAttributes = Faker.fake();
+
+            let xml = format!("<{} {}></{}>", SsmlElement::Mark, attr, SsmlElement::Mark);
+
+            let mut reader = Reader::from_reader(xml.as_ref());
+            let event = reader.read_event().unwrap();
+            println!("{:?}", event);
+            if let Event::Start(bs) = event {
+                let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
+
+                assert_eq!(ssml_element, SsmlElement::Mark);
+                assert_eq!(parsed_element, ParsedElement::Mark(attr));
+            } else {
+                panic!("Didn't get expected event");
+            }
+        }
+    }
+
+    #[test]
+    fn emphasis_conversions() {
+        for _ in 0..30 {
+            let attr: EmphasisAttributes = Faker.fake();
+
+            let xml = format!(
+                "<{} {}></{}>",
+                SsmlElement::Emphasis,
+                attr,
+                SsmlElement::Emphasis
+            );
+
+            let mut reader = Reader::from_reader(xml.as_ref());
+            let event = reader.read_event().unwrap();
+            println!("{:?}", event);
+            if let Event::Start(bs) = event {
+                let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
+
+                assert_eq!(ssml_element, SsmlElement::Emphasis);
+                assert_eq!(parsed_element, ParsedElement::Emphasis(attr));
+            } else {
+                panic!("Didn't get expected event");
+            }
+        }
+    }
+
+    #[test]
+    fn sub_conversions() {
+        for _ in 0..30 {
+            let attr: SubAttributes = Faker.fake();
+
+            let xml = format!("<{} {}></{}>", SsmlElement::Sub, attr, SsmlElement::Sub);
+
+            let mut reader = Reader::from_reader(xml.as_ref());
+            let event = reader.read_event().unwrap();
+            println!("{:?}", event);
+            if let Event::Start(bs) = event {
+                let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
+
+                assert_eq!(ssml_element, SsmlElement::Sub);
+                assert_eq!(parsed_element, ParsedElement::Sub(attr));
+            } else {
+                panic!("Didn't get expected event");
+            }
+        }
     }
 }

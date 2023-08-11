@@ -262,7 +262,7 @@ impl SsmlParser {
 
 /// Parse an SSML element, this returns an `SsmlElement` as a tag to represent the SSML and the
 /// `ParsedElement` with the attributes to make conditions no the ssml type easier to write.
-fn parse_element(
+pub(crate) fn parse_element(
     elem: BytesStart,
     reader: &mut Reader<&[u8]>,
 ) -> Result<(SsmlElement, ParsedElement)> {
@@ -842,7 +842,7 @@ fn parse_audio<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
 
 pub(crate) fn parse_decibel(val: &str) -> anyhow::Result<f32> {
     lazy_static! {
-        static ref DB_RE: Regex = Regex::new(r"^[+-]?((?:\d*\.)?\d)+dB$").unwrap();
+        static ref DB_RE: Regex = Regex::new(r"^([+-]?(?:\d*\.)?\d+)dB$").unwrap();
     }
     let caps = DB_RE
         .captures(val)
@@ -855,7 +855,7 @@ pub(crate) fn parse_decibel(val: &str) -> anyhow::Result<f32> {
 /// returns percentages as written
 pub(crate) fn parse_unsigned_percentage(val: &str) -> anyhow::Result<f32> {
     lazy_static! {
-        static ref PERCENT_RE: Regex = Regex::new(r"^+?((?:\d*\.)?\d)+%$").unwrap();
+        static ref PERCENT_RE: Regex = Regex::new(r"^+?((?:\d*\.)?\d+)%$").unwrap();
     }
     let caps = PERCENT_RE
         .captures(val)
@@ -1029,5 +1029,28 @@ mod tests {
         assert_eq!(res.get_text().trim(), "W3C");
 
         assert_eq!(res.event_log.len(), 5);
+    }
+
+    #[test]
+    fn decibels() {
+        assert!(parse_decibel("56").is_err());
+        assert!(parse_decibel("hello").is_err());
+        assert!(parse_decibel("64.5DB").is_err());
+        assert!(parse_decibel("64.5dBs").is_err());
+
+        assert_eq!(parse_decibel("-10dB").unwrap() as i32, -10);
+        assert_eq!(parse_decibel("15dB").unwrap() as i32, 15);
+        assert_eq!(parse_decibel(".5dB").unwrap(), 0.5);
+    }
+
+    #[test]
+    fn unsigned_percentages() {
+        assert!(parse_unsigned_percentage("56").is_err());
+        assert!(parse_unsigned_percentage("64pc").is_err());
+        assert!(parse_unsigned_percentage("74%%").is_err());
+
+        assert_eq!(parse_unsigned_percentage("10%").unwrap() as i32, 10);
+        assert_eq!(parse_unsigned_percentage("110%").unwrap() as i32, 110);
+        assert_eq!(parse_unsigned_percentage(".5%").unwrap(), 0.5);
     }
 }
