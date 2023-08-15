@@ -541,6 +541,29 @@ pub struct LexiconAttributes {
     pub xml_id: String,
     pub ty: Option<mediatype::MediaTypeBuf>,
     pub fetch_timeout: Option<TimeDesignation>,
+    // TODO we don't support maxage or maxstale
+}
+
+#[cfg(test)]
+impl fake::Dummy<fake::Faker> for LexiconAttributes {
+    fn dummy_with_rng<R: rand::Rng + ?Sized>(f: &fake::Faker, rng: &mut R) -> Self {
+        use fake::Fake;
+        use mediatype::names::*;
+        let ty = if rng.gen_bool(0.5) {
+            Some(mediatype::MediaTypeBuf::new(
+                APPLICATION,
+                mediatype::Name::new("pls+xml").unwrap(),
+            ))
+        } else {
+            None
+        };
+        Self {
+            uri: "https://www.w3.org/TR/speech-synthesis11/".parse().unwrap(), // TODO change after next fake release
+            xml_id: f.fake_with_rng(rng),
+            fetch_timeout: f.fake_with_rng(rng),
+            ty,
+        }
+    }
 }
 
 impl Display for LexiconAttributes {
@@ -551,7 +574,7 @@ impl Display for LexiconAttributes {
             write!(f, " type=\"{}\"", ty)?;
         }
         if let Some(timeout) = &self.fetch_timeout {
-            write!(f, " fetch_timeout=\"{}\"", timeout)?;
+            write!(f, " fetchtimeout=\"{}\"", timeout)?;
         }
         Ok(())
     }
@@ -2382,6 +2405,32 @@ mod tests {
 
                 assert_eq!(ssml_element, SsmlElement::Sub);
                 assert_eq!(parsed_element, ParsedElement::Sub(attr));
+            } else {
+                panic!("Didn't get expected event");
+            }
+        }
+    }
+
+    #[test]
+    fn lexicon_conversions() {
+        for _ in 0..30 {
+            let attr: LexiconAttributes = Faker.fake();
+
+            let xml = format!(
+                "<{} {}></{}>",
+                SsmlElement::Lexicon,
+                attr,
+                SsmlElement::Lexicon
+            );
+
+            let mut reader = Reader::from_reader(xml.as_ref());
+            let event = reader.read_event().unwrap();
+            println!("{:?}", event);
+            if let Event::Start(bs) = event {
+                let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
+
+                assert_eq!(ssml_element, SsmlElement::Lexicon);
+                assert_eq!(parsed_element, ParsedElement::Lexicon(attr));
             } else {
                 panic!("Didn't get expected event");
             }
