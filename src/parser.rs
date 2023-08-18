@@ -772,7 +772,7 @@ fn parse_audio<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
         None
     };
 
-    let max_stale = if let Some(v) = elem.try_get_attribute("maxage")? {
+    let max_stale = if let Some(v) = elem.try_get_attribute("maxstale")? {
         Some(v.decode_and_unescape_value(reader)?.parse::<usize>()?)
     } else {
         None
@@ -786,7 +786,7 @@ fn parse_audio<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
         None => TimeDesignation::Seconds(0.0),
     };
 
-    let clip_end = match elem.try_get_attribute("clipBegin")? {
+    let clip_end = match elem.try_get_attribute("clipEnd")? {
         Some(clip) => {
             let clip = clip.decode_and_unescape_value(reader)?;
             Some(TimeDesignation::from_str(&clip)?)

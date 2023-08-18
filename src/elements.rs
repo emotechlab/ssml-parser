@@ -353,11 +353,18 @@ impl From<&ParsedElement> for SsmlElement {
 /// All Rights Reserved._
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct SpeakAttributes {
+    /// Lang is an attribute specifying the language of the root document. In the specification
+    /// this is a REQUIRED attribute, however in reality most TTS APIs require a different way to
+    /// specify the language outside of SSML and treat this as optional. Because of that this
+    /// implementation has chosen to be more permissive than the spec.
     pub lang: Option<String>,
+    /// Base is an OPTIONAL attribute specifying the Base URI of the root document.
     pub base: Option<String>,
+    /// On Language Failure is an OPTIONAL attribute specifying the desired behavior upon language speaking failure.
     pub on_lang_failure: Option<OnLanguageFailure>,
+    /// The version attribute is a REQUIRED attribute that indicates the version of the specification to be used for the document and MUST have the value "1.1".
     pub version: String,
-    // for remaining attributes on root like namespace etc
+    /// for remaining attributes on root like namespace etc
     pub xml_root_attrs: BTreeMap<String, String>,
 }
 
@@ -394,11 +401,13 @@ impl Display for SpeakAttributes {
     }
 }
 
-/// The lang element is used to specify the natural language of the content.
+/// The lang element is used to specify the natural language of the content. This element MAY be used when there is a change in the natural language.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[cfg_attr(test, derive(fake::Dummy))]
 pub struct LangAttributes {
+    /// Lang is a REQUIRED attribute specifying the language of the root document.
     pub lang: String,
+    /// On Language Failure is an OPTIONAL attribute specifying the desired behavior upon language speaking failure.
     pub on_lang_failure: Option<OnLanguageFailure>,
 }
 
@@ -537,9 +546,16 @@ impl FromStr for SsmlElement {
 /// All Rights Reserved._
 #[derive(Debug, Clone, PartialEq)]
 pub struct LexiconAttributes {
+    ///  The lexicon element MUST have a uri attribute specifying a URI that identifies the location of the lexicon document.
     pub uri: http::Uri,
+    /// The lexicon element MUST have an xml:id attribute that assigns a name to the lexicon document. The name MUST be unique to the current SSML document.
+    /// The scope of this name is the current SSML document.
     pub xml_id: String,
+    /// The lexicon element MAY have a type attribute that specifies the media type of the lexicon
+    /// document. The default value of the type attribute is application/pls+xml, the media type
+    /// associated with Pronunciation Lexicon Specification documents.
     pub ty: Option<mediatype::MediaTypeBuf>,
+    /// The lexicon element MAY have a fetchtimeout attribute that specifies the timeout for fetches.
     pub fetch_timeout: Option<TimeDesignation>,
     // TODO we don't support maxage or maxstale
 }
@@ -558,7 +574,7 @@ impl fake::Dummy<fake::Faker> for LexiconAttributes {
             None
         };
         Self {
-            uri: "https://www.w3.org/TR/speech-synthesis11/".parse().unwrap(), // TODO change after next fake release
+            uri: f.fake_with_rng(rng),
             xml_id: f.fake_with_rng(rng),
             fetch_timeout: f.fake_with_rng(rng),
             ty,
@@ -585,7 +601,9 @@ impl Display for LexiconAttributes {
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
 #[cfg_attr(test, derive(fake::Dummy))]
 pub enum TimeDesignation {
+    /// Time specified in seconds
     Seconds(f32),
+    /// Time specified in milliseconds
     Milliseconds(f32),
 }
 
@@ -660,6 +678,7 @@ impl FromStr for TimeDesignation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(test, derive(fake::Dummy))]
 pub struct LookupAttributes {
+    /// Specifies a name that references a lexicon document as assigned by the xml:id attribute of the lexicon element.
     pub lookup_ref: String,
 }
 
@@ -693,8 +712,11 @@ impl Display for LookupAttributes {
 /// All Rights Reserved._
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetaAttributes {
+    /// Currently, the only defined name is `seeAlso`. In future other meta names may be added.
     pub name: Option<String>,
+    /// Used for when documents are retrieved via HTTP.
     pub http_equiv: Option<String>,
+    /// The content referred to by the meta.
     pub content: String,
 }
 
@@ -785,6 +807,7 @@ impl Display for TokenAttributes {
 /// The interpret-as attribute is always required; the other two attributes are optional.
 /// The legal values for the format attribute depend on the value of the interpret-as attribute.
 /// The say-as element can only contain text to be rendered.
+///
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -823,10 +846,17 @@ impl Display for SayAsAttributes {
     }
 }
 
+/// The phonemic/phonetic pronunciation alphabet. A pronunciation alphabet in this context refers to a collection
+/// of symbols to represent the sounds of one or more human languages.
+///
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[cfg_attr(test, derive(fake::Dummy))]
 pub enum PhonemeAlphabet {
+    /// The Internation Phonetic Association's alphabet.
     Ipa,
+    /// Another alphabet (only IPA is required to be supported).
     Other(String),
 }
 
@@ -1126,13 +1156,19 @@ impl fmt::Display for Sign {
     }
 }
 
+/// Although the exact meaning of "pitch range" will vary across synthesis processors,
+/// increasing/decreasing this value will typically increase/decrease the dynamic range of the output pitch.
+///
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(test, derive(fake::Dummy))]
 pub enum PitchRange {
+    /// Specifies the range in terms of a strength enum
     Strength(PitchStrength), // low, medium high etc
+    /// Specify it in terms of absolute frequencies
     Frequency(f32),
+    /// Specifies the range in terms of relative changes between an existing pitch.
     RelativeChange((f32, Sign, Unit)),
 }
 
@@ -1225,12 +1261,19 @@ impl fmt::Display for PitchRange {
     }
 }
 
+/// The volume for the contained text. Legal values are: a number preceded by "+" or "-" and
+/// immediately followed by "dB"; or "silent", "x-soft", "soft", "medium", "loud", "x-loud", or
+/// "default". The default is +0.0dB. Specifying a value of "silent" amounts to specifying minus infinity
+/// decibels (dB).
+///
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(test, derive(fake::Dummy))]
 pub enum VolumeRange {
+    /// Specifies the volume via an enumeration
     Strength(VolumeStrength), // "silent", "x-soft", "soft", "medium", "loud", "x-loud", default
+    /// Volume specified via Decibels
     Decibel(f32),
 }
 
@@ -1263,12 +1306,23 @@ impl fmt::Display for VolumeRange {
     }
 }
 
+///  A change in the speaking rate for the contained text. Legal values are: a non-negative percentage or "x-slow",
+///  "slow", "medium", "fast", "x-fast", or "default". Labels "x-slow" through "x-fast" represent a sequence of
+///  monotonically non-decreasing speaking rates. When the value is a non-negative percentage it acts as a multiplier
+///  of the default rate. For example, a value of 100% means no change in speaking rate, a value of 200% means a
+///  speaking rate twice the default rate, and a value of 50% means a speaking rate of half the default rate.
+///  The default rate for a voice depends on the language and dialect and on the personality of the voice.
+///  The default rate for a voice SHOULD be such that it is experienced as a normal speaking rate for the voice when
+///  reading aloud text. Since voices are processor-specific, the default rate will be as well.
+///
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(test, derive(fake::Dummy))]
 pub enum RateRange {
+    /// Rate rate specified via an enum.
     Strength(RateStrength), // "x-slow", "slow", "medium", "fast", "x-fast", or "default"
+    /// Rate range specified via a positive percentage.
     Percentage(PositiveNumber),
 }
 
@@ -1315,11 +1369,19 @@ impl fmt::Display for RateRange {
     }
 }
 
+/// The pitch contour is defined as a set of white space-separated targets at specified time positions in the speech output.
+/// The algorithm for interpolating between the targets is processor-specific. In each pair of the form (time position,target),
+/// the first value is a percentage of the period of the contained text (a number followed by "%") and the second value is
+/// the value of the pitch attribute (a number followed by "Hz", a relative change, or a label value). Time position values
+/// outside 0% to 100% are ignored. If a pitch value is not defined for 0% or 100% then the nearest pitch target is copied.
+/// All relative values for the pitch are relative to the pitch value just before the contained text.
+///
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(test, derive(fake::Dummy))]
 pub enum ContourElement {
+    /// Pitch contouring element.
     Element((f32, PitchRange)),
 }
 
@@ -1363,11 +1425,19 @@ impl fmt::Display for ContourElement {
     }
 }
 
+/// The pitch contour is defined as a set of white space-separated targets at specified time positions in the speech output.
+/// The algorithm for interpolating between the targets is processor-specific. In each pair of the form (time position,target),
+/// the first value is a percentage of the period of the contained text (a number followed by "%") and the second value is
+/// the value of the pitch attribute (a number followed by "Hz", a relative change, or a label value). Time position values
+/// outside 0% to 100% are ignored. If a pitch value is not defined for 0% or 100% then the nearest pitch target is copied.
+/// All relative values for the pitch are relative to the pitch value just before the contained text.
+///
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(test, derive(fake::Dummy))]
 pub enum PitchContour {
+    /// List of pitch contours
     Elements(Vec<ContourElement>),
 }
 
@@ -1417,11 +1487,13 @@ impl fmt::Display for PitchContour {
     }
 }
 
-/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
-/// All Rights Reserved._
+/// Representation of positive numbers in SSML tags. We keep a float vs integral value to ensure
+/// that when re-serializating numeric errors are minimised.
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub enum PositiveNumber {
+    /// Floating point value
     FloatNumber(f32),
+    /// Integral number
     RoundNumber(isize),
 }
 
@@ -1684,6 +1756,7 @@ impl Display for ProsodyAttributes {
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(test, derive(fake::Dummy))]
 pub struct MarkAttributes {
+    /// Name of the marker used to refer to it when jumping in the audio.
     pub name: String,
 }
 
@@ -1733,6 +1806,7 @@ impl Display for EmphasisAttributes {
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(test, derive(fake::Dummy))]
 pub struct SubAttributes {
+    /// The string to be spoken instead of the string enclosed in the tag
     pub alias: String,
 }
 
@@ -1742,11 +1816,18 @@ impl Display for SubAttributes {
     }
 }
 
+/// Attribute indicating the preferred gender of the voice to speak the contained text.
+///
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[cfg_attr(test, derive(fake::Dummy))]
 pub enum Gender {
+    /// Male voice
     Male,
+    /// Female voice
     Female,
+    /// Gender neutral voice
     Neutral,
 }
 
@@ -1782,7 +1863,9 @@ impl FromStr for Gender {
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[cfg_attr(test, derive(fake::Dummy))]
 pub struct LanguageAccentPair {
+    /// Language the voice is desired to speak.
     pub lang: String,
+    /// Optional accent to apply to the language.
     pub accent: Option<String>,
 }
 
@@ -1966,11 +2049,24 @@ impl FromStr for LanguageAccentPair {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub struct VoiceAttributes {
+    /// OPTIONAL attribute indicating the preferred gender of the voice to speak the contained text.
+    /// Enumerated values are: "male", "female", "neutral", or the empty string "".
     pub gender: Option<Gender>,
+    /// OPTIONAL attribute indicating the preferred age in years (since birth) of the voice to speak the contained text.
     pub age: Option<u8>,
+    /// OPTIONAL attribute indicating a preferred variant of the other voice characteristics to speak the contained text.
+    /// (e.g. the second male child voice).
     pub variant: Option<NonZeroUsize>,
+    ///  OPTIONAL attribute indicating a processor-specific voice name to speak the contained text.
+    ///  The value MAY be a space-separated list of names ordered from top preference down or the empty string "".
+    ///  As a result a name MUST NOT contain any white space.
     pub name: Vec<String>,
+    /// OPTIONAL attribute indicating the list of languages the voice is desired to speak.
+    /// The value MUST be either the empty string "" or a space-separated list of languages,
+    /// with OPTIONAL accent indication per language. Each language/accent pair is of the form "language" or "language:accent",
+    /// where both language and accent MUST be an Extended Language Range, except that the values "und" and "zxx" are disallowed.
     pub languages: Vec<LanguageAccentPair>,
 }
 
@@ -2003,10 +2099,18 @@ impl Display for VoiceAttributes {
     }
 }
 
+/// This tells the synthesis processor whether or not it can attempt to optimize rendering by pre-fetching audio.
+/// The value is either safe to say that audio is only fetched when it is needed, never before; or prefetch to permit,
+/// but not require the processor to pre-fetch the audio.
+///
+/// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
+/// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[cfg_attr(test, derive(fake::Dummy))]
 pub enum FetchHint {
+    /// The processor can perform an optimisation where it fetches the audio before it is needed
     Prefetch,
+    /// The audio should only be fetched when needed
     Safe,
 }
 
@@ -2049,6 +2153,7 @@ impl Default for FetchHint {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(test, derive(fake::Dummy))]
 pub struct AudioAttributes {
     /// The URI of a document with an appropriate media type. If absent, the audio element behaves
     /// as if src were present with a legal URI but the document could not be fetched.
@@ -2091,6 +2196,10 @@ pub struct AudioAttributes {
 impl Display for AudioAttributes {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, " fetchhint=\"{}\"", self.fetch_hint)?;
+        write!(f, " clipBegin=\"{}\"", self.clip_begin)?;
+        write!(f, " repeatCount=\"{}\"", self.repeat_count)?;
+        write!(f, " soundLevel=\"{}dB\"", self.sound_level)?;
+        write!(f, " speed=\"{}%\"", self.speed * 100.0)?;
         if let Some(src) = &self.src {
             write!(f, " src=\"{}\"", escape(&src.to_string()))?;
         }
@@ -2103,6 +2212,12 @@ impl Display for AudioAttributes {
         if let Some(max_stale) = &self.max_stale {
             write!(f, " maxstale=\"{}\"", max_stale)?;
         }
+        if let Some(clip_end) = &self.clip_end {
+            write!(f, " clipEnd=\"{}\"", clip_end)?;
+        }
+        if let Some(repeat_dur) = &self.repeat_dur {
+            write!(f, " repeatDur=\"{}\"", repeat_dur)?;
+        }
 
         Ok(())
     }
@@ -2112,6 +2227,7 @@ impl Display for AudioAttributes {
 mod tests {
     use super::*;
     use crate::parser::*;
+    use assert_approx_eq::assert_approx_eq;
     use fake::{Fake, Faker};
     use quick_xml::events::Event;
     use quick_xml::reader::Reader;
@@ -2234,9 +2350,23 @@ mod tests {
                 let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
 
                 assert_eq!(ssml_element, SsmlElement::Token);
-                assert_eq!(parsed_element, ParsedElement::Token(token));
+                assert_eq!(parsed_element, ParsedElement::Token(token.clone()));
             } else {
-                panic!("Didn't get expected event");
+                panic!("Didn't get expected token event");
+            }
+
+            let xml = format!("<{} {}></{}>", SsmlElement::Word, token, SsmlElement::Word);
+
+            let mut reader = Reader::from_reader(xml.as_ref());
+            let event = reader.read_event().unwrap();
+            println!("{:?}", event);
+            if let Event::Start(bs) = event {
+                let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
+
+                assert_eq!(ssml_element, SsmlElement::Word);
+                assert_eq!(parsed_element, ParsedElement::Word(token));
+            } else {
+                panic!("Didn't get expected word event");
             }
         }
     }
@@ -2431,6 +2561,65 @@ mod tests {
 
                 assert_eq!(ssml_element, SsmlElement::Lexicon);
                 assert_eq!(parsed_element, ParsedElement::Lexicon(attr));
+            } else {
+                panic!("Didn't get expected event");
+            }
+        }
+    }
+
+    #[test]
+    fn voice_conversions() {
+        for _ in 0..30 {
+            let attr: VoiceAttributes = Faker.fake();
+
+            let xml = format!("<{} {}></{}>", SsmlElement::Voice, attr, SsmlElement::Voice);
+
+            let mut reader = Reader::from_reader(xml.as_ref());
+            let event = reader.read_event().unwrap();
+            println!("{:?}", event);
+            if let Event::Start(bs) = event {
+                let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
+
+                assert_eq!(ssml_element, SsmlElement::Voice);
+                assert_eq!(parsed_element, ParsedElement::Voice(attr));
+            } else {
+                panic!("Didn't get expected event");
+            }
+        }
+    }
+
+    #[test]
+    fn audio_conversions() {
+        for _ in 0..50 {
+            let attr: AudioAttributes = Faker.fake();
+
+            let xml = format!("<{} {}></{}>", SsmlElement::Audio, attr, SsmlElement::Audio);
+
+            let mut reader = Reader::from_reader(xml.as_ref());
+            let event = reader.read_event().unwrap();
+            println!("{:?}", event);
+            if let Event::Start(bs) = event {
+                let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
+
+                assert_eq!(ssml_element, SsmlElement::Audio);
+                if let ParsedElement::Audio(parsed) = parsed_element {
+                    assert_eq!(parsed.src, attr.src);
+                    assert_eq!(parsed.fetch_timeout, attr.fetch_timeout);
+                    assert_eq!(parsed.fetch_hint, attr.fetch_hint);
+                    assert_eq!(parsed.max_age, attr.max_age);
+                    assert_eq!(parsed.max_stale, attr.max_stale);
+                    assert_eq!(parsed.clip_begin, attr.clip_begin);
+                    assert_eq!(parsed.clip_end, attr.clip_end);
+                    assert_eq!(parsed.repeat_count, attr.repeat_count);
+                    assert_eq!(parsed.repeat_dur, attr.repeat_dur);
+                    assert_approx_eq!(parsed.sound_level, attr.sound_level);
+                    assert_approx_eq!(parsed.speed, attr.speed);
+                } else {
+                    panic!(
+                        "SSML Element type doesn't match actual parsed value: {:?}",
+                        parsed_element
+                    );
+                }
             } else {
                 panic!("Didn't get expected event");
             }

@@ -1,6 +1,6 @@
 [package]
 name = "ssml-parser"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 
 [features]
@@ -18,5 +18,6 @@ quick-xml = "0.27"
 regex = "1"
 
 [dev-dependencies]
-fake = { version = "2.6.1", features = ["derive", "http"] }
+assert_approx_eq = "1.1.0"
+fake = { version = "2.7.0", features = ["derive", "http"] }
 rand = "0.8.5"

@@ -274,7 +274,6 @@ mod tests {
         <speak version="1.0" xml:lang="string" foo="&amp;" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts">
             <mstts:backgroundaudio fadein="string" fadeout="string" src="string" volume="string"/>
             <voice name="string">
-                <audio fetchhint="prefetch" src="string"/>
                 <bookmark mark="string"/>
                 <break strength="medium" time="5s"/>
                 <emphasis level="reduced"/>
