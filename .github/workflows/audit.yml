@@ -9,4 +9,4 @@ jobs:
       - uses: actions/checkout@v3
       - uses: rustsec/audit-check@v1.4.1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.CARGO_AUDIT_GITHUB_TOKEN }}
