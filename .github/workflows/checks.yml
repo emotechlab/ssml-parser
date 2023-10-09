@@ -18,6 +18,6 @@ jobs:
       - name: Cargo build
         run: cargo build --locked
       - name: Cargo test
-        run: cargo test --locked --verbose
+        run: cargo test --locked
       - name: Rustfmt
         run: cargo fmt --check
