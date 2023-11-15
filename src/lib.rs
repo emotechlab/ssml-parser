@@ -159,10 +159,7 @@ impl Ssml {
         use ParserLogEvent::*;
         for event in self.event_log.iter().cloned() {
             let new_event = match event {
-                Text(span) => {
-                    let (start, end) = span;
-                    f(ParserEvent::Text(self.text[start..end].to_string()))
-                }
+                Text((start, end)) => f(ParserEvent::Text(self.text[start..end].to_string())),
                 Open(element) => f(ParserEvent::Open(element)),
                 Close(element) => f(ParserEvent::Close(element)),
                 Empty(element) => f(ParserEvent::Empty(element)),
@@ -179,6 +176,20 @@ impl Ssml {
             ssml_string,
             synthesisable_text,
         }
+    }
+
+    /// Turns the SSML document into a stream of events with open/close tags, text and empty
+    /// elements. This will not filter out text that shouldn't be synthesised so it's on the user
+    /// to keep track of this.
+    pub fn event_iter<'a>(&'a self) -> impl Iterator<Item = ParserEvent> + 'a {
+        self.event_log.iter().cloned().map(|x| match x {
+            ParserLogEvent::Text((start, end)) => {
+                ParserEvent::Text(self.text[start..end].to_string())
+            }
+            ParserLogEvent::Open(elem) => ParserEvent::Open(elem),
+            ParserLogEvent::Close(elem) => ParserEvent::Close(elem),
+            ParserLogEvent::Empty(elem) => ParserEvent::Empty(elem),
+        })
     }
 
     /// For each parser event to write out apply a transformation to it or return None if it should
