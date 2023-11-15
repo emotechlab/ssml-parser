@@ -1,41 +1,4 @@
-//! The main focus on this crate is parsing not writing SSML, although there is some basic writing
-//! support to support Emotech applications. The main function people will want to use is
-//! `parse_ssml` which returns an `Ssml` structure which breaks down the text into it's elements.
-//!
-//! Below is a simple example:
-//!
-//! ```
-//! use ssml_parser::parse_ssml;
-//!
-//! let ssml = r#"<?xml version="1.0"?>
-//!     <speak version="1.1"
-//!            xmlns="http://www.w3.org/2001/10/synthesis"
-//!            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-//!            xsi:schemaLocation="http://www.w3.org/2001/10/synthesis
-//!                        http://www.w3.org/TR/speech-synthesis11/synthesis.xsd"
-//!            xml:lang="en-US">
-//!       <p>
-//!         <s>You have 4 new messages.</s>
-//!         <s>The first is from Stephanie Williams and arrived at <break/> 3:45pm.
-//!         </s>
-//!         <s>
-//!           The subject is <prosody rate="20%">ski trip</prosody>
-//!         </s>
-//!       </p>
-//!     </speak>"#;
-//!
-//!  let result = parse_ssml(ssml).unwrap();
-//!
-//!  // We can now see the text with tags removed:
-//!
-//!  println!("{}", result.get_text());
-//!
-//!  // And can loop over all the SSML tags and get their character indexes:
-//!
-//!  for tag in result.tags() {
-//!     println!("{:?}", tag);
-//!  }
-//! ```
+#![doc = include_str!("../README.md")]
 use crate::{elements::SsmlElement, parser::Span};
 use elements::ParsedElement;
 use std::fmt;
