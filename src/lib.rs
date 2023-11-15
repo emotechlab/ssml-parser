@@ -181,7 +181,7 @@ impl Ssml {
     /// Turns the SSML document into a stream of events with open/close tags, text and empty
     /// elements. This will not filter out text that shouldn't be synthesised so it's on the user
     /// to keep track of this.
-    pub fn event_iter<'a>(&'a self) -> impl Iterator<Item = ParserEvent> + 'a {
+    pub fn event_iter(&self) -> impl Iterator<Item = ParserEvent> + '_ {
         self.event_log.iter().cloned().map(|x| match x {
             ParserLogEvent::Text((start, end)) => {
                 ParserEvent::Text(self.text[start..end].to_string())
