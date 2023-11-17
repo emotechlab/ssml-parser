@@ -18,6 +18,7 @@ use std::convert::Infallible;
 use std::fmt::{self, Display};
 use std::num::NonZeroUsize;
 use std::str::FromStr;
+use std::time::Duration;
 
 /// Type of the SSML element
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -605,6 +606,16 @@ pub enum TimeDesignation {
     Seconds(f32),
     /// Time specified in milliseconds
     Milliseconds(f32),
+}
+
+impl TimeDesignation {
+    /// Turns the time designation to a std Duration type.
+    pub fn duration(&self) -> Duration {
+        match self {
+            Self::Seconds(s) => Duration::from_secs_f32(*s),
+            Self::Milliseconds(ms) => Duration::from_secs_f32(ms / 1000.0),
+        }
+    }
 }
 
 impl Display for TimeDesignation {
@@ -2231,6 +2242,13 @@ mod tests {
     use fake::{Fake, Faker};
     use quick_xml::events::Event;
     use quick_xml::reader::Reader;
+
+    #[test]
+    fn duration_conversion() {
+        let time = TimeDesignation::Seconds(2.0);
+        let time_ms = TimeDesignation::Milliseconds(2000.0);
+        assert_eq!(time.duration(), time_ms.duration());
+    }
 
     // If we take one of our elements and write it out again in theory we should reparse it as the
     // same element!
