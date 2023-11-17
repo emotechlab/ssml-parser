@@ -18,6 +18,7 @@ use std::convert::Infallible;
 use std::fmt::{self, Display};
 use std::num::NonZeroUsize;
 use std::str::FromStr;
+use std::time::Duration;
 
 /// Type of the SSML element
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -605,6 +606,16 @@ pub enum TimeDesignation {
     Seconds(f32),
     /// Time specified in milliseconds
     Milliseconds(f32),
+}
+
+impl TimeDesignation {
+    /// Turns the time designation to a std Duration type.
+    pub fn duration(&self) -> Duration {
+        match self {
+            Self::Seconds(s) => Duration::from_secs_f32(*s),
+            Self::Milliseconds(ms) => Duration::from_secs_f32(1000.0 * ms),
+        }
+    }
 }
 
 impl Display for TimeDesignation {
