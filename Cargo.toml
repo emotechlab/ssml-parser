@@ -2,6 +2,10 @@
 name = "ssml-parser"
 version = "0.1.4"
 edition = "2021"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+keywords = ["parser", "ssml"]
+categories = ["text-processing"]
 
 [features]
 async = ["async-trait"]
