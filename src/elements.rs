@@ -29,7 +29,7 @@ pub enum SsmlElement {
     Lexicon,
     /// The `<lookup></lookup>` element.
     Lookup,
-    /// The `<meta/> element.
+    /// The `<meta/>` element.
     Meta,
     /// The `<metadata></metadata>` element.
     Metadata,
