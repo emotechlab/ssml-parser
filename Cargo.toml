@@ -2,6 +2,8 @@
 name = "ssml-parser"
 version = "0.1.4"
 edition = "2021"
+description = "A crate for parsing speech sythnesis markup language"
+repository = "https://github.com/emotechlab/ssml-parser"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
 keywords = ["parser", "ssml"]
