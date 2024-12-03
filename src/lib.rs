@@ -76,7 +76,7 @@ pub trait AsyncSsmlTransformer {
 impl fmt::Display for ParserEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Text(text) => write!(f, "{}", quick_xml::escape::escape(&text)),
+            Self::Text(text) => write!(f, "{}", quick_xml::escape::escape(text)),
             Self::Open(element) => {
                 let name: SsmlElement = element.into();
                 write!(f, "<{}{}>", name, element.attribute_string())
@@ -270,7 +270,7 @@ mod tests {
         let rewritten = parse_ssml(ssml).unwrap().write_ssml();
 
         let mut reader = Reader::from_str(ssml);
-        reader.trim_text(true);
+        reader.config_mut().trim_text(true);
         let mut writer = Writer::new(Cursor::new(vec![]));
 
         loop {
@@ -283,7 +283,7 @@ mod tests {
         let ssml = String::from_utf8(writer.into_inner().into_inner()).unwrap();
 
         let mut reader = Reader::from_str(&rewritten);
-        reader.trim_text(true);
+        reader.config_mut().trim_text(true);
         let mut writer = Writer::new(Cursor::new(vec![]));
 
         loop {
