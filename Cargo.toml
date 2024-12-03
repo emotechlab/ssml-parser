@@ -20,7 +20,7 @@ http = "0.2.9"
 indexmap = "2.7.0"
 lazy_static = "1.5"
 mediatype = "0.19.18"
-quick-xml = "0.27"
+quick-xml = "0.37"
 regex = "1"
 
 [dev-dependencies]
