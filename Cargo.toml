@@ -17,7 +17,7 @@ anyhow = "1.0.95"
 async-trait = { version = "0.1.85", optional = true }
 derive_builder = "0.13.1"
 http = "1.2.0"
-indexmap = "2.7.0"
+indexmap = "2.7.1"
 lazy_static = "1.5"
 mediatype = "0.19.18"
 quick-xml = "0.37"
