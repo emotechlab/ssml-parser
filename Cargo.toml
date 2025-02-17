@@ -24,6 +24,6 @@ quick-xml = "0.37"
 regex = "1"
 
 [dev-dependencies]
-assert_approx_eq = "1.1.0"
-fake = { version = "3.2.0", features = ["derive", "http"] }
-rand = "0.8.5"
+assert_approx_eq = "1.1"
+fake = { version = "4.0", features = ["derive", "http"] }
+rand = "0.9"

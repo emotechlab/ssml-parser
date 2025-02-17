@@ -566,7 +566,7 @@ impl fake::Dummy<fake::Faker> for LexiconAttributes {
     fn dummy_with_rng<R: rand::Rng + ?Sized>(f: &fake::Faker, rng: &mut R) -> Self {
         use fake::Fake;
         use mediatype::names::*;
-        let ty = if rng.gen_bool(0.5) {
+        let ty = if rng.random_bool(0.5) {
             Some(mediatype::MediaTypeBuf::new(
                 APPLICATION,
                 mediatype::Name::new("pls+xml").unwrap(),
@@ -735,7 +735,7 @@ pub struct MetaAttributes {
 impl fake::Dummy<fake::Faker> for MetaAttributes {
     fn dummy_with_rng<R: rand::Rng + ?Sized>(f: &fake::Faker, rng: &mut R) -> Self {
         use fake::Fake;
-        let (name, http_equiv) = if rng.gen_bool(0.5) {
+        let (name, http_equiv) = if rng.random_bool(0.5) {
             (None, Some(f.fake_with_rng(rng)))
         } else {
             (Some(f.fake_with_rng(rng)), None)
@@ -1511,10 +1511,10 @@ pub enum PositiveNumber {
 #[cfg(test)]
 impl fake::Dummy<fake::Faker> for PositiveNumber {
     fn dummy_with_rng<R: rand::Rng + ?Sized>(_: &fake::Faker, rng: &mut R) -> PositiveNumber {
-        if rng.gen_bool(0.5) {
-            Self::FloatNumber(rng.gen_range(0.1..100.0))
+        if rng.random_bool(0.5) {
+            Self::FloatNumber(rng.random_range(0.1..100.0))
         } else {
-            Self::RoundNumber(rng.gen_range(1..100))
+            Self::RoundNumber(rng.random_range::<u64, _>(1..100) as isize)
         }
     }
 }
