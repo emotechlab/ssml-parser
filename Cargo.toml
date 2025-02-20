@@ -15,7 +15,7 @@ async = ["async-trait"]
 [dependencies]
 anyhow = "1.0.96"
 async-trait = { version = "0.1.86", optional = true }
-derive_builder = "0.13.1"
+derive_builder = "0.20.2"
 http = "1.2.0"
 indexmap = "2.7.1"
 lazy_static = "1.5"
