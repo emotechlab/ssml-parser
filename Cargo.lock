@@ -232,9 +232,9 @@ checksum = "b5aba8db14291edd000dfcc4d620c7ebfb122c613afb886ca8803fa4e128a20a"
 
 [[package]]
 name = "mediatype"
-version = "0.19.18"
+version = "0.19.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8878cd8d1b3c8c8ae4b2ba0a36652b7cf192f618a599a7fbdfa25cffd4ea72dd"
+checksum = "659f336e6cbe1083b58900e48649ed99fc99952a983e8d8cc992494394dd3732"
 
 [[package]]
 name = "memchr"
