@@ -25,5 +25,5 @@ regex = "1"
 
 [dev-dependencies]
 assert_approx_eq = "1.1"
-fake = { version = "4.3", features = ["derive", "http"] }
+fake = { version = "4.4", features = ["derive", "http"] }
 rand = "0.9"
