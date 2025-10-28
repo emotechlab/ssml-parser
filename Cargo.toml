@@ -19,7 +19,7 @@ derive_builder = "0.20.2"
 http = "1.3.1"
 indexmap = "2.12.0"
 lazy_static = "1.5"
-mediatype = "0.20.0"
+mediatype = "0.21.0"
 quick-xml = "0.37"
 regex = "1"
 
