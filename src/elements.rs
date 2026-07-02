@@ -10,6 +10,8 @@
 //! but keep in mind the fields will also be taken from the same section of the
 //! standard.
 use anyhow::{bail, Context};
+#[cfg(test)]
+use fake::RngExt;
 use lazy_static::lazy_static;
 use quick_xml::escape::escape;
 use regex::Regex;

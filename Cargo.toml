@@ -1,6 +1,6 @@
 [package]
 name = "ssml-parser"
-version = "0.1.4"
+version = "0.2.0"
 edition = "2021"
 description = "A crate for parsing speech sythnesis markup language"
 repository = "https://github.com/emotechlab/ssml-parser"
@@ -20,10 +20,10 @@ http = "1.4.2"
 indexmap = "2.14.0"
 lazy_static = "1.5"
 mediatype = "0.21.0"
-quick-xml = "0.37"
+quick-xml = "0.41"
 regex = "1"
 
 [dev-dependencies]
 assert_approx_eq = "1.1"
-fake = { version = "4.4", features = ["derive", "http"] }
-rand = "0.9"
+fake = { version = "5.1", features = ["derive", "http"] }
+rand = "0.10"
