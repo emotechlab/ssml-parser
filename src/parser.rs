@@ -14,9 +14,7 @@ use quick_xml::XmlVersion;
 use regex::Regex;
 use std::cmp::{Ord, Ordering};
 use std::collections::BTreeMap;
-use std::io;
 use std::num::NonZeroUsize;
-use std::str::from_utf8;
 use std::str::FromStr;
 
 /// Shows a region of the cleaned transcript which an SSML element applies to.
@@ -107,7 +105,7 @@ fn push_text(text: &str, text_buffer: &mut String) {
 }
 
 fn push_text_event(e: BytesText, text_buffer: &mut String) -> Result<()> {
-    let text = e.xml10_content()?;
+    let text = e.xml10_content();
     push_text(&text, text_buffer);
     Ok(())
 }
@@ -117,7 +115,7 @@ fn push_general_ref(e: BytesRef, text_buffer: &mut String) -> Result<()> {
         let mut text = [0; 4];
         push_text(ch.encode_utf8(&mut text), text_buffer);
     } else {
-        let entity = e.decode()?;
+        let entity = e.as_ref();
         let text = resolve_xml_entity(&entity)
             .with_context(|| format!("Unrecognized XML entity: &{};", entity))?;
         push_text(text, text_buffer);
@@ -155,7 +153,7 @@ impl SsmlParser {
 
         loop {
             match reader.read_event()? {
-                Event::Start(e) if e.local_name().as_ref() == b"speak" => {
+                Event::Start(e) if e.local_name().as_ref() == "speak" => {
                     if !has_started {
                         text_buffer.clear();
                     } else {
@@ -163,7 +161,7 @@ impl SsmlParser {
                     }
                     has_started = true;
 
-                    let element = parse_speak(e, &reader)?;
+                    let element = parse_speak(e)?;
                     event_log.push(ParserLogEvent::Open(element.clone()));
 
                     let span = Span {
@@ -182,7 +180,7 @@ impl SsmlParser {
                     // elements in this specification.
                     if has_started {
                         if !(text_buffer.is_empty() || text_buffer.ends_with(char::is_whitespace))
-                            && matches!(e.local_name().as_ref(), b"s" | b"p")
+                            && matches!(e.local_name().as_ref(), "s" | "p")
                         {
                             // Need to add in a space as they're using tags instead
                             text_buffer.push(' ');
@@ -243,7 +241,7 @@ impl SsmlParser {
                 }
                 Event::End(e) => {
                     let name = e.name();
-                    let name = from_utf8(name.as_ref())?;
+                    let name = name.as_ref();
                     if open_tags.is_empty() {
                         bail!(
                             "Invalid SSML close tag '{}' presented without open tag.",
@@ -295,43 +293,40 @@ pub(crate) fn parse_element(
     reader: &mut Reader<&[u8]>,
 ) -> Result<(SsmlElement, ParsedElement)> {
     let name = elem.name();
-    let name = from_utf8(name.as_ref())?;
+    let name = name.as_ref();
     let elem_type = SsmlElement::from_str(name).unwrap();
 
     let res = match elem_type {
-        SsmlElement::Speak => parse_speak(elem, reader)?,
-        SsmlElement::Lexicon => parse_lexicon(elem, reader)?,
-        SsmlElement::Lookup => parse_lookup(elem, reader)?,
-        SsmlElement::Meta => parse_meta(elem, reader)?,
+        SsmlElement::Speak => parse_speak(elem)?,
+        SsmlElement::Lexicon => parse_lexicon(elem)?,
+        SsmlElement::Lookup => parse_lookup(elem)?,
+        SsmlElement::Meta => parse_meta(elem)?,
         SsmlElement::Metadata => ParsedElement::Metadata,
         SsmlElement::Paragraph => ParsedElement::Paragraph,
         SsmlElement::Sentence => ParsedElement::Sentence,
-        SsmlElement::Token => parse_token(elem, reader)?,
-        SsmlElement::Word => parse_word(elem, reader)?,
-        SsmlElement::SayAs => parse_say_as(elem, reader)?,
-        SsmlElement::Phoneme => parse_phoneme(elem, reader)?,
-        SsmlElement::Sub => parse_sub(elem, reader)?,
-        SsmlElement::Lang => parse_language(elem, reader)?,
-        SsmlElement::Voice => parse_voice(elem, reader)?,
-        SsmlElement::Emphasis => parse_emphasis(elem, reader)?,
-        SsmlElement::Break => parse_break(elem, reader)?,
-        SsmlElement::Prosody => parse_prosody(elem, reader)?,
-        SsmlElement::Audio => parse_audio(elem, reader)?,
-        SsmlElement::Mark => parse_mark(elem, reader)?,
+        SsmlElement::Token => parse_token(elem)?,
+        SsmlElement::Word => parse_word(elem)?,
+        SsmlElement::SayAs => parse_say_as(elem)?,
+        SsmlElement::Phoneme => parse_phoneme(elem)?,
+        SsmlElement::Sub => parse_sub(elem)?,
+        SsmlElement::Lang => parse_language(elem)?,
+        SsmlElement::Voice => parse_voice(elem)?,
+        SsmlElement::Emphasis => parse_emphasis(elem)?,
+        SsmlElement::Break => parse_break(elem)?,
+        SsmlElement::Prosody => parse_prosody(elem)?,
+        SsmlElement::Audio => parse_audio(elem)?,
+        SsmlElement::Mark => parse_mark(elem)?,
         SsmlElement::Description => {
             let text = reader
                 .read_text(elem.to_end().name())
-                .map(|text| text.decode().map(|text| text.to_string()))??;
+                .map(|text| text.to_string())?;
             ParsedElement::Description(text)
         }
         SsmlElement::Custom(ref s) => {
             let mut attributes = BTreeMap::new();
             for attr in elem.attributes() {
                 let attr = attr?;
-                attributes.insert(
-                    String::from_utf8(attr.key.0.to_vec())?,
-                    String::from_utf8(attr.value.to_vec())?,
-                );
+                attributes.insert(attr.key.0.to_string(), attr.value.to_string());
             }
             ParsedElement::Custom((s.to_string(), attributes))
         }
@@ -341,13 +336,13 @@ pub(crate) fn parse_element(
 }
 
 // TODO: handle start mark and end mark
-fn parse_speak<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+fn parse_speak(elem: BytesStart) -> Result<ParsedElement> {
     let version = elem.try_get_attribute("version")?;
 
     // Technically spec non-compliant however commercial TTS such as amazon, google and microsoft
     // don't require the version and just assume 1.1
     let version = if let Some(v) = version {
-        let version = v.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+        let version = v.normalized_value(XmlVersion::Implicit1_0)?;
         match version.as_ref() {
             "1.0" | "1.1" => (),
             v => bail!("Unsupported SSML spec version: {}", v),
@@ -359,25 +354,19 @@ fn parse_speak<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
 
     let lang = elem.try_get_attribute("xml:lang")?;
     let lang = if let Some(lang) = lang {
-        Some(
-            lang.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
-                .to_string(),
-        )
+        Some(lang.normalized_value(XmlVersion::Implicit1_0)?.to_string())
     } else {
         None
     };
     let base = elem.try_get_attribute("xml:base")?;
     let base = if let Some(base) = base {
-        Some(
-            base.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
-                .to_string(),
-        )
+        Some(base.normalized_value(XmlVersion::Implicit1_0)?.to_string())
     } else {
         None
     };
     let on_lang_failure = elem.try_get_attribute("onlangfailure")?;
     let on_lang_failure = if let Some(lang) = on_lang_failure {
-        let value = lang.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+        let value = lang.normalized_value(XmlVersion::Implicit1_0)?;
         Some(OnLanguageFailure::from_str(&value)?)
     } else {
         None
@@ -387,12 +376,12 @@ fn parse_speak<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
     for attr in elem.attributes() {
         let attr = attr?;
 
-        match std::str::from_utf8(attr.key.0).unwrap() {
+        match attr.key.0 {
             "xml:base" | "xml:lang" | "onlangfailure" | "version" => continue,
             attr_name => {
                 xml_root_attrs.insert(
                     String::from(attr_name),
-                    String::from_utf8(attr.value.into())?,
+                    attr.normalized_value(XmlVersion::Implicit1_0)?.to_string(),
                 );
             }
         }
@@ -407,24 +396,23 @@ fn parse_speak<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
     }))
 }
 
-fn parse_lexicon<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+fn parse_lexicon(elem: BytesStart) -> Result<ParsedElement> {
     let xml_id = elem
         .try_get_attribute("xml:id")?
         .context("xml:id attribute is required with a lexicon element")?
-        .decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
+        .normalized_value(XmlVersion::Implicit1_0)?
         .to_string();
 
     let uri: http::Uri = elem
         .try_get_attribute("uri")?
         .context("uri attribute is required with a lexicon element")?
-        .decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
+        .normalized_value(XmlVersion::Implicit1_0)?
         .to_string()
         .parse()?;
 
     let fetch_timeout = match elem.try_get_attribute("fetchtimeout")? {
         Some(fetchtimeout) => {
-            let fetchtimeout = fetchtimeout
-                .decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+            let fetchtimeout = fetchtimeout.normalized_value(XmlVersion::Implicit1_0)?;
             Some(TimeDesignation::from_str(&fetchtimeout)?)
         }
         None => None,
@@ -432,9 +420,7 @@ fn parse_lexicon<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result
 
     let ty = match elem.try_get_attribute("type")? {
         Some(ty) => {
-            let ty = ty
-                .decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
-                .to_string();
+            let ty = ty.normalized_value(XmlVersion::Implicit1_0)?.to_string();
             let ty = MediaTypeBuf::from_string(ty)
                 .context("invalid media type for type attribute of lexicon element")?;
 
@@ -451,21 +437,21 @@ fn parse_lexicon<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result
     }))
 }
 
-fn parse_lookup<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+fn parse_lookup(elem: BytesStart) -> Result<ParsedElement> {
     let lookup_ref = elem
         .try_get_attribute("ref")?
         .context("ref attribute is required with a lookup element")?
-        .decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
+        .normalized_value(XmlVersion::Implicit1_0)?
         .to_string();
 
     Ok(ParsedElement::Lookup(LookupAttributes { lookup_ref }))
 }
 
-fn parse_meta<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+fn parse_meta(elem: BytesStart) -> Result<ParsedElement> {
     let content = elem
         .try_get_attribute("content")?
         .context("content attribute is required with a meta element")?
-        .decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
+        .normalized_value(XmlVersion::Implicit1_0)?
         .to_string();
 
     let name = elem.try_get_attribute("name")?;
@@ -473,17 +459,14 @@ fn parse_meta<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<Pa
 
     let (name, http_equiv) = match (name, http_equiv) {
         (Some(name), None) => (
-            Some(
-                name.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
-                    .to_string(),
-            ),
+            Some(name.normalized_value(XmlVersion::Implicit1_0)?.to_string()),
             None,
         ),
         (None, Some(http_equiv)) => (
             None,
             Some(
                 http_equiv
-                    .decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
+                    .normalized_value(XmlVersion::Implicit1_0)?
                     .to_string(),
             ),
         ),
@@ -499,51 +482,39 @@ fn parse_meta<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<Pa
     }))
 }
 
-fn parse_token<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+fn parse_token(elem: BytesStart) -> Result<ParsedElement> {
     let role = match elem.try_get_attribute("role")? {
-        Some(attr) => Some(
-            attr.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
-                .to_string(),
-        ),
+        Some(attr) => Some(attr.normalized_value(XmlVersion::Implicit1_0)?.to_string()),
         None => None,
     };
 
     Ok(ParsedElement::Token(TokenAttributes { role }))
 }
 
-fn parse_word<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+fn parse_word(elem: BytesStart) -> Result<ParsedElement> {
     let role = match elem.try_get_attribute("role")? {
-        Some(attr) => Some(
-            attr.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
-                .to_string(),
-        ),
+        Some(attr) => Some(attr.normalized_value(XmlVersion::Implicit1_0)?.to_string()),
         None => None,
     };
 
     Ok(ParsedElement::Word(TokenAttributes { role }))
 }
 
-fn parse_say_as<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+fn parse_say_as(elem: BytesStart) -> Result<ParsedElement> {
     // TODO: maybe rewrite the error handling in other parse functions to look like this.
     let interpret_as = elem
         .try_get_attribute("interpret-as")?
         .context("interpret-as attribute is required with a say-as element")?
-        .decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
+        .normalized_value(XmlVersion::Implicit1_0)?
         .to_string();
 
     let format = match elem.try_get_attribute("format")? {
-        Some(attr) => Some(
-            attr.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
-                .to_string(),
-        ),
+        Some(attr) => Some(attr.normalized_value(XmlVersion::Implicit1_0)?.to_string()),
         None => None,
     };
 
     let detail = match elem.try_get_attribute("detail")? {
-        Some(attr) => Some(
-            attr.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
-                .to_string(),
-        ),
+        Some(attr) => Some(attr.normalized_value(XmlVersion::Implicit1_0)?.to_string()),
         None => None,
     };
 
@@ -554,11 +525,10 @@ fn parse_say_as<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<
     }))
 }
 
-fn parse_phoneme<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+fn parse_phoneme(elem: BytesStart) -> Result<ParsedElement> {
     let phoneme = elem.try_get_attribute("ph")?;
     let phoneme = if let Some(phoneme) = phoneme {
-        let value =
-            phoneme.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+        let value = phoneme.normalized_value(XmlVersion::Implicit1_0)?;
         value.to_string()
     } else {
         bail!("ph attribute is required with a phoneme element");
@@ -566,7 +536,7 @@ fn parse_phoneme<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result
 
     let alphabet = elem.try_get_attribute("alphabet")?;
     let alphabet = if let Some(alpha) = alphabet {
-        let val = alpha.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+        let val = alpha.normalized_value(XmlVersion::Implicit1_0)?;
         Some(PhonemeAlphabet::from_str(&val).unwrap())
     } else {
         None
@@ -578,11 +548,10 @@ fn parse_phoneme<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result
     }))
 }
 
-fn parse_break<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+fn parse_break(elem: BytesStart) -> Result<ParsedElement> {
     let strength = elem.try_get_attribute("strength")?;
     let strength = if let Some(strength) = strength {
-        let value =
-            strength.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+        let value = strength.normalized_value(XmlVersion::Implicit1_0)?;
         let value = Strength::from_str(&value)?;
         Some(value)
     } else {
@@ -590,8 +559,7 @@ fn parse_break<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
     };
     let time = match elem.try_get_attribute("time")? {
         Some(time) => {
-            let value =
-                time.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+            let value = time.normalized_value(XmlVersion::Implicit1_0)?;
             Some(TimeDesignation::from_str(&value)?)
         }
         None => None,
@@ -600,27 +568,26 @@ fn parse_break<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
     Ok(ParsedElement::Break(BreakAttributes { strength, time }))
 }
 
-fn parse_sub<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+fn parse_sub(elem: BytesStart) -> Result<ParsedElement> {
     let alias = elem
         .try_get_attribute("alias")?
         .context("alias attribute required for sub element")?
-        .decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
+        .normalized_value(XmlVersion::Implicit1_0)?
         .to_string();
 
     Ok(ParsedElement::Sub(SubAttributes { alias }))
 }
 
-fn parse_language<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+fn parse_language(elem: BytesStart) -> Result<ParsedElement> {
     let lang = elem
         .try_get_attribute("xml:lang")?
         .context("xml:lang attribute is required with a lang element")?
-        .decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
+        .normalized_value(XmlVersion::Implicit1_0)?
         .to_string();
 
     let on_lang_failure = match elem.try_get_attribute("onlangfailure")? {
         Some(s) => {
-            let value =
-                s.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+            let value = s.normalized_value(XmlVersion::Implicit1_0)?;
             Some(OnLanguageFailure::from_str(&value)?)
         }
         None => None,
@@ -632,11 +599,10 @@ fn parse_language<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Resul
     }))
 }
 
-fn parse_emphasis<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+fn parse_emphasis(elem: BytesStart) -> Result<ParsedElement> {
     let level = elem.try_get_attribute("level")?;
     let level = if let Some(level) = level {
-        let value =
-            level.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+        let value = level.normalized_value(XmlVersion::Implicit1_0)?;
         let value = EmphasisLevel::from_str(&value)?;
         Some(value)
     } else {
@@ -646,11 +612,10 @@ fn parse_emphasis<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Resul
     Ok(ParsedElement::Emphasis(EmphasisAttributes { level }))
 }
 
-fn parse_prosody<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+fn parse_prosody(elem: BytesStart) -> Result<ParsedElement> {
     let pitch = elem.try_get_attribute("pitch")?;
     let pitch = if let Some(pitch) = pitch {
-        let value =
-            pitch.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+        let value = pitch.normalized_value(XmlVersion::Implicit1_0)?;
         let value = match PitchRange::from_str(&value) {
             Ok(result) => result,
             Err(e) => bail!("Error: {}", e),
@@ -662,8 +627,7 @@ fn parse_prosody<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result
     };
     let contour = elem.try_get_attribute("contour")?;
     let contour = if let Some(contour) = contour {
-        let value =
-            contour.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+        let value = contour.normalized_value(XmlVersion::Implicit1_0)?;
         let value = match PitchContour::from_str(&value) {
             Ok(result) => result,
             Err(e) => bail!("Error: {}", e),
@@ -674,8 +638,7 @@ fn parse_prosody<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result
     };
     let range = elem.try_get_attribute("range")?;
     let range = if let Some(range) = range {
-        let value =
-            range.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+        let value = range.normalized_value(XmlVersion::Implicit1_0)?;
         let value = match PitchRange::from_str(&value) {
             Ok(result) => result,
             Err(e) => bail!("Error: {}", e),
@@ -687,7 +650,7 @@ fn parse_prosody<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result
     };
     let rate = elem.try_get_attribute("rate")?;
     let rate = if let Some(rate) = rate {
-        let value = rate.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+        let value = rate.normalized_value(XmlVersion::Implicit1_0)?;
         let value = match RateRange::from_str(&value) {
             Ok(result) => result,
             Err(e) => bail!("Error: {}", e),
@@ -698,17 +661,13 @@ fn parse_prosody<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result
         None
     };
     let duration = match elem.try_get_attribute("duration")? {
-        Some(val) => Some(
-            val.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
-                .parse()?,
-        ),
+        Some(val) => Some(val.normalized_value(XmlVersion::Implicit1_0)?.parse()?),
         None => None,
     };
 
     let volume = elem.try_get_attribute("volume")?;
     let volume = if let Some(volume) = volume {
-        let value =
-            volume.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+        let value = volume.normalized_value(XmlVersion::Implicit1_0)?;
         let value = match VolumeRange::from_str(&value) {
             Ok(result) => result,
             Err(e) => bail!("Error: {}", e),
@@ -729,22 +688,21 @@ fn parse_prosody<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result
     }))
 }
 
-fn parse_mark<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+fn parse_mark(elem: BytesStart) -> Result<ParsedElement> {
     let name = elem
         .try_get_attribute("name")?
         .context("name attribute is required with mark element")?
-        .decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
+        .normalized_value(XmlVersion::Implicit1_0)?
         .to_string();
 
     Ok(ParsedElement::Mark(MarkAttributes { name }))
 }
 
-fn parse_voice<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+fn parse_voice(elem: BytesStart) -> Result<ParsedElement> {
     let gender = elem.try_get_attribute("gender")?;
     let gender = match gender {
         Some(v) => {
-            let value =
-                v.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+            let value = v.normalized_value(XmlVersion::Implicit1_0)?;
             if value.is_empty() {
                 None
             } else {
@@ -756,8 +714,7 @@ fn parse_voice<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
     let age = elem.try_get_attribute("age")?;
     let age = match age {
         Some(v) => {
-            let value =
-                v.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+            let value = v.normalized_value(XmlVersion::Implicit1_0)?;
             if value.is_empty() {
                 None
             } else {
@@ -769,8 +726,7 @@ fn parse_voice<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
     let variant = elem.try_get_attribute("variant")?;
     let variant = match variant {
         Some(v) => {
-            let value =
-                v.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+            let value = v.normalized_value(XmlVersion::Implicit1_0)?;
             if value.is_empty() {
                 None
             } else {
@@ -782,8 +738,7 @@ fn parse_voice<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
     let name = elem.try_get_attribute("name")?;
     let name = match name {
         Some(v) => {
-            let value =
-                v.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+            let value = v.normalized_value(XmlVersion::Implicit1_0)?;
             value
                 .split(' ')
                 .map(|x| x.to_string())
@@ -794,8 +749,7 @@ fn parse_voice<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
     let languages = elem.try_get_attribute("languages")?;
     let languages = match languages {
         Some(v) => {
-            let value =
-                v.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+            let value = v.normalized_value(XmlVersion::Implicit1_0)?;
             let mut res = vec![];
             for language in value.split(' ') {
                 res.push(LanguageAccentPair::from_str(language)?);
@@ -813,11 +767,11 @@ fn parse_voice<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
     }))
 }
 
-fn parse_audio<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<ParsedElement> {
+fn parse_audio(elem: BytesStart) -> Result<ParsedElement> {
     let src = match elem.try_get_attribute("src")? {
         Some(s) => {
             let src: http::Uri = s
-                .decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
+                .normalized_value(XmlVersion::Implicit1_0)?
                 .to_string()
                 .parse()?;
             Some(src)
@@ -827,8 +781,7 @@ fn parse_audio<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
 
     let fetch_timeout = match elem.try_get_attribute("fetchtimeout")? {
         Some(fetchtimeout) => {
-            let fetchtimeout = fetchtimeout
-                .decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+            let fetchtimeout = fetchtimeout.normalized_value(XmlVersion::Implicit1_0)?;
             Some(TimeDesignation::from_str(&fetchtimeout)?)
         }
         None => None,
@@ -836,8 +789,7 @@ fn parse_audio<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
 
     let fetch_hint = match elem.try_get_attribute("fetchhint")? {
         Some(fetch) => {
-            let fetch =
-                fetch.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+            let fetch = fetch.normalized_value(XmlVersion::Implicit1_0)?;
             FetchHint::from_str(&fetch)?
         }
         None => FetchHint::default(),
@@ -845,7 +797,7 @@ fn parse_audio<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
 
     let max_age = if let Some(v) = elem.try_get_attribute("maxage")? {
         Some(
-            v.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
+            v.normalized_value(XmlVersion::Implicit1_0)?
                 .parse::<usize>()?,
         )
     } else {
@@ -854,7 +806,7 @@ fn parse_audio<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
 
     let max_stale = if let Some(v) = elem.try_get_attribute("maxstale")? {
         Some(
-            v.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
+            v.normalized_value(XmlVersion::Implicit1_0)?
                 .parse::<usize>()?,
         )
     } else {
@@ -863,8 +815,7 @@ fn parse_audio<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
 
     let clip_begin = match elem.try_get_attribute("clipBegin")? {
         Some(clip) => {
-            let clip =
-                clip.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+            let clip = clip.normalized_value(XmlVersion::Implicit1_0)?;
             TimeDesignation::from_str(&clip)?
         }
         None => TimeDesignation::Seconds(0.0),
@@ -872,15 +823,14 @@ fn parse_audio<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
 
     let clip_end = match elem.try_get_attribute("clipEnd")? {
         Some(clip) => {
-            let clip =
-                clip.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+            let clip = clip.normalized_value(XmlVersion::Implicit1_0)?;
             Some(TimeDesignation::from_str(&clip)?)
         }
         None => None,
     };
 
     let repeat_count = if let Some(v) = elem.try_get_attribute("repeatCount")? {
-        v.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
+        v.normalized_value(XmlVersion::Implicit1_0)?
             .parse::<NonZeroUsize>()?
     } else {
         unsafe { NonZeroUsize::new_unchecked(1) }
@@ -888,8 +838,7 @@ fn parse_audio<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
 
     let repeat_dur = match elem.try_get_attribute("repeatDur")? {
         Some(repeat) => {
-            let repeat =
-                repeat.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+            let repeat = repeat.normalized_value(XmlVersion::Implicit1_0)?;
             Some(TimeDesignation::from_str(&repeat)?)
         }
         None => None,
@@ -897,8 +846,7 @@ fn parse_audio<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
 
     let sound_level = match elem.try_get_attribute("soundLevel")? {
         Some(sound) => {
-            let sound =
-                sound.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+            let sound = sound.normalized_value(XmlVersion::Implicit1_0)?;
             parse_decibel(&sound)?
         }
         None => 0.0,
@@ -906,8 +854,7 @@ fn parse_audio<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
 
     let speed = match elem.try_get_attribute("speed")? {
         Some(speed) => {
-            let speed =
-                speed.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?;
+            let speed = speed.normalized_value(XmlVersion::Implicit1_0)?;
             parse_unsigned_percentage(&speed)? / 100.0
         }
         None => 1.0,

@@ -10,8 +10,6 @@
 //! but keep in mind the fields will also be taken from the same section of the
 //! standard.
 use anyhow::{bail, Context};
-#[cfg(test)]
-use fake::RngExt;
 use lazy_static::lazy_static;
 use quick_xml::escape::escape;
 use regex::Regex;
@@ -371,20 +369,6 @@ pub struct SpeakAttributes {
     pub xml_root_attrs: BTreeMap<String, String>,
 }
 
-#[cfg(test)]
-impl fake::Dummy<fake::Faker> for SpeakAttributes {
-    fn dummy_with_rng<R: rand::Rng + ?Sized>(f: &fake::Faker, rng: &mut R) -> Self {
-        use fake::Fake;
-        Self {
-            lang: f.fake_with_rng(rng),
-            base: f.fake_with_rng(rng),
-            on_lang_failure: f.fake_with_rng(rng),
-            version: "1.1".to_string(),
-            xml_root_attrs: f.fake_with_rng(rng),
-        }
-    }
-}
-
 impl Display for SpeakAttributes {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, " version=\"{}\"", escape(&self.version))?;
@@ -398,7 +382,7 @@ impl Display for SpeakAttributes {
             write!(f, " onlangfailure=\"{}\"", fail)?;
         }
         for (attr_name, attr_value) in self.xml_root_attrs.iter() {
-            write!(f, " {}=\"{}\"", attr_name, attr_value)?;
+            write!(f, " {}=\"{}\"", attr_name, escape(attr_value))?;
         }
         Ok(())
     }
@@ -406,7 +390,7 @@ impl Display for SpeakAttributes {
 
 /// The lang element is used to specify the natural language of the content. This element MAY be used when there is a change in the natural language.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub struct LangAttributes {
     /// Lang is a REQUIRED attribute specifying the language of the root document.
     pub lang: String,
@@ -434,7 +418,7 @@ impl Display for LangAttributes {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub enum OnLanguageFailure {
     /// If a voice exists that can speak the language, the synthesis processor
     /// will switch to that voice and speak the content. Otherwise, the
@@ -563,28 +547,6 @@ pub struct LexiconAttributes {
     // TODO we don't support maxage or maxstale
 }
 
-#[cfg(test)]
-impl fake::Dummy<fake::Faker> for LexiconAttributes {
-    fn dummy_with_rng<R: rand::Rng + ?Sized>(f: &fake::Faker, rng: &mut R) -> Self {
-        use fake::Fake;
-        use mediatype::names::*;
-        let ty = if rng.random_bool(0.5) {
-            Some(mediatype::MediaTypeBuf::new(
-                APPLICATION,
-                mediatype::Name::new("pls+xml").unwrap(),
-            ))
-        } else {
-            None
-        };
-        Self {
-            uri: f.fake_with_rng(rng),
-            xml_id: f.fake_with_rng(rng),
-            fetch_timeout: f.fake_with_rng(rng),
-            ty,
-        }
-    }
-}
-
 impl Display for LexiconAttributes {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, " uri=\"{}\"", escape(&self.uri.to_string()))?;
@@ -602,7 +564,7 @@ impl Display for LexiconAttributes {
 /// For times SSML only uses seconds or milliseconds in the form "%fs" "%fs", this handles parsing
 /// these times
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub enum TimeDesignation {
     /// Time specified in seconds
     Seconds(f32),
@@ -689,7 +651,7 @@ impl FromStr for TimeDesignation {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub struct LookupAttributes {
     /// Specifies a name that references a lexicon document as assigned by the xml:id attribute of the lexicon element.
     pub lookup_ref: String,
@@ -733,23 +695,6 @@ pub struct MetaAttributes {
     pub content: String,
 }
 
-#[cfg(test)]
-impl fake::Dummy<fake::Faker> for MetaAttributes {
-    fn dummy_with_rng<R: rand::Rng + ?Sized>(f: &fake::Faker, rng: &mut R) -> Self {
-        use fake::Fake;
-        let (name, http_equiv) = if rng.random_bool(0.5) {
-            (None, Some(f.fake_with_rng(rng)))
-        } else {
-            (Some(f.fake_with_rng(rng)), None)
-        };
-        Self {
-            name,
-            http_equiv,
-            content: f.fake_with_rng(rng),
-        }
-    }
-}
-
 impl Display for MetaAttributes {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, " content=\"{}\"", escape(&self.content))?;
@@ -781,7 +726,7 @@ impl Display for MetaAttributes {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub struct TokenAttributes {
     /// `role` is an OPTIONAL defined attribute on the token element. The role
     /// attribute takes as its value one or more white space separated QNames
@@ -824,7 +769,7 @@ impl Display for TokenAttributes {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Debug, Clone, Eq, PartialEq)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub struct SayAsAttributes {
     /// The interpret-as attribute indicates the content type of the contained text construct.
     /// Specifying the content type helps the synthesis processor to distinguish and interpret
@@ -865,7 +810,7 @@ impl Display for SayAsAttributes {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub enum PhonemeAlphabet {
     /// The Internation Phonetic Association's alphabet.
     Ipa,
@@ -906,7 +851,7 @@ impl FromStr for PhonemeAlphabet {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Debug, Clone, Eq, PartialEq)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub struct PhonemeAttributes {
     /// The ph attribute is a required attribute that specifies the phoneme/phone
     /// string.
@@ -950,7 +895,7 @@ impl Display for PhonemeAttributes {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub enum Strength {
     /// None value - do not insert a break here
     No,
@@ -1002,7 +947,7 @@ impl FromStr for Strength {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub enum PitchStrength {
     /// Extra low (x-low)
     XLow,
@@ -1051,7 +996,7 @@ impl Display for PitchStrength {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub enum VolumeStrength {
     /// Silent
     Silent,
@@ -1104,7 +1049,7 @@ impl fmt::Display for VolumeStrength {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub enum RateStrength {
     /// X-slow
     XSlow,
@@ -1152,7 +1097,7 @@ impl fmt::Display for RateStrength {
 
 /// Sign for relative values (positive or negative).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub enum Sign {
     /// Positive relative change.
     Plus,
@@ -1175,7 +1120,7 @@ impl fmt::Display for Sign {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub enum PitchRange {
     /// Specifies the range in terms of a strength enum
     Strength(PitchStrength), // low, medium high etc
@@ -1282,7 +1227,7 @@ impl fmt::Display for PitchRange {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub enum VolumeRange {
     /// Specifies the volume via an enumeration
     Strength(VolumeStrength), // "silent", "x-soft", "soft", "medium", "loud", "x-loud", default
@@ -1331,7 +1276,7 @@ impl fmt::Display for VolumeRange {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub enum RateRange {
     /// Rate rate specified via an enum.
     Strength(RateStrength), // "x-slow", "slow", "medium", "fast", "x-fast", or "default"
@@ -1392,7 +1337,7 @@ impl fmt::Display for RateRange {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub enum ContourElement {
     /// Pitch contouring element.
     Element((f32, PitchRange)),
@@ -1448,7 +1393,7 @@ impl fmt::Display for ContourElement {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub enum PitchContour {
     /// List of pitch contours
     Elements(Vec<ContourElement>),
@@ -1503,22 +1448,12 @@ impl fmt::Display for PitchContour {
 /// Representation of positive numbers in SSML tags. We keep a float vs integral value to ensure
 /// that when re-serializating numeric errors are minimised.
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub enum PositiveNumber {
     /// Floating point value
     FloatNumber(f32),
     /// Integral number
     RoundNumber(isize),
-}
-
-#[cfg(test)]
-impl fake::Dummy<fake::Faker> for PositiveNumber {
-    fn dummy_with_rng<R: rand::Rng + ?Sized>(_: &fake::Faker, rng: &mut R) -> PositiveNumber {
-        if rng.random_bool(0.5) {
-            Self::FloatNumber(rng.random_range(0.1..100.0))
-        } else {
-            Self::RoundNumber(rng.random_range::<u64, _>(1..100) as isize)
-        }
-    }
 }
 
 impl FromStr for PositiveNumber {
@@ -1566,7 +1501,7 @@ impl fmt::Display for PositiveNumber {
 /// Unit used to measure relative changes in values, this is either percentage or for pitches can
 /// be measured in semitones or Hertz.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub enum Unit {
     /// Hertz
     Hz,
@@ -1589,7 +1524,7 @@ impl fmt::Display for Unit {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub enum EmphasisLevel {
     /// Strong
     Strong,
@@ -1641,7 +1576,7 @@ impl FromStr for EmphasisLevel {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub struct BreakAttributes {
     ///  The strength attribute is an optional attribute having one of the following
     ///  values: "none", "x-weak", "weak", "medium" (default value), "strong", or
@@ -1676,7 +1611,7 @@ impl Display for BreakAttributes {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub struct ProsodyAttributes {
     /// pitch: the baseline pitch for the contained text. Although the exact meaning of "baseline pitch"
     /// will vary across synthesis processors, increasing/decreasing this value will typically increase/decrease
@@ -1767,7 +1702,7 @@ impl Display for ProsodyAttributes {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub struct MarkAttributes {
     /// Name of the marker used to refer to it when jumping in the audio.
     pub name: String,
@@ -1782,7 +1717,7 @@ impl Display for MarkAttributes {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub struct EmphasisAttributes {
     /// the optional level attribute indicates the strength of emphasis to be applied. Defined
     /// values are "strong", "moderate", "none" and "reduced". The default level is "moderate".
@@ -1817,7 +1752,7 @@ impl Display for EmphasisAttributes {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub struct SubAttributes {
     /// The string to be spoken instead of the string enclosed in the tag
     pub alias: String,
@@ -1834,7 +1769,7 @@ impl Display for SubAttributes {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub enum Gender {
     /// Male voice
     Male,
@@ -1874,7 +1809,7 @@ impl FromStr for Gender {
 /// A language accent pair, this will be a language (required) and an optional accent in which to
 /// speak the language.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub struct LanguageAccentPair {
     /// Language the voice is desired to speak.
     pub lang: String,
@@ -2062,7 +1997,6 @@ impl FromStr for LanguageAccentPair {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-#[cfg_attr(test, derive(fake::Dummy))]
 pub struct VoiceAttributes {
     /// OPTIONAL attribute indicating the preferred gender of the voice to speak the contained text.
     /// Enumerated values are: "male", "female", "neutral", or the empty string "".
@@ -2119,7 +2053,7 @@ impl Display for VoiceAttributes {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-#[cfg_attr(test, derive(fake::Dummy))]
+#[cfg_attr(test, derive(hegel::DefaultGenerator))]
 pub enum FetchHint {
     /// The processor can perform an optimisation where it fetches the audio before it is needed
     Prefetch,
@@ -2166,7 +2100,6 @@ impl Default for FetchHint {
 /// "Speech Synthesis Markup Language (SSML) Version 1.1" _Copyright © 2010 W3C® (MIT, ERCIM, Keio),
 /// All Rights Reserved._
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(test, derive(fake::Dummy))]
 pub struct AudioAttributes {
     /// The URI of a document with an appropriate media type. If absent, the audio element behaves
     /// as if src were present with a legal URI but the document could not be fetched.
@@ -2241,9 +2174,62 @@ mod tests {
     use super::*;
     use crate::parser::*;
     use assert_approx_eq::assert_approx_eq;
-    use fake::{Fake, Faker};
+    use hegel::generators::{self, DefaultGenerator as _};
     use quick_xml::events::Event;
     use quick_xml::reader::Reader;
+
+    fn text(tc: &hegel::TestCase) -> String {
+        tc.draw(generators::from_regex(r#"[ -~]{0,24}"#))
+    }
+
+    fn time(tc: &hegel::TestCase) -> TimeDesignation {
+        let value = tc.draw(
+            generators::floats::<f32>()
+                .min_value(0.0)
+                .max_value(10_000.0),
+        );
+        if tc.draw(generators::booleans()) {
+            TimeDesignation::Seconds(value)
+        } else {
+            TimeDesignation::Milliseconds(value)
+        }
+    }
+
+    fn optional_time(tc: &hegel::TestCase) -> Option<TimeDesignation> {
+        tc.draw(generators::booleans()).then(|| time(tc))
+    }
+
+    fn prosody(tc: &hegel::TestCase) -> ProsodyAttributes {
+        let contour = tc.draw(generators::booleans()).then(|| {
+            let length = tc.draw(generators::integers::<usize>().max_value(4));
+            PitchContour::Elements(
+                (0..length)
+                    .map(|_| {
+                        ContourElement::Element((
+                            tc.draw(generators::floats::<f32>().min_value(0.0).max_value(100.0)),
+                            PitchRange::Strength(tc.draw(generators::default::<PitchStrength>())),
+                        ))
+                    })
+                    .collect(),
+            )
+        });
+        ProsodyAttributes {
+            pitch: tc
+                .draw(generators::optional(generators::default::<PitchStrength>()))
+                .map(PitchRange::Strength),
+            contour,
+            range: tc
+                .draw(generators::optional(generators::default::<PitchStrength>()))
+                .map(PitchRange::Strength),
+            rate: tc
+                .draw(generators::optional(generators::default::<RateStrength>()))
+                .map(RateRange::Strength),
+            duration: optional_time(tc),
+            volume: tc
+                .draw(generators::optional(generators::default::<VolumeStrength>()))
+                .map(VolumeRange::Strength),
+        }
+    }
 
     #[test]
     fn duration_conversion() {
@@ -2255,11 +2241,27 @@ mod tests {
     // If we take one of our elements and write it out again in theory we should reparse it as the
     // same element!
 
-    #[test]
-    fn speak_conversions() {
-        // lets try 30 times
-        for _ in 0..30 {
-            let speak: SpeakAttributes = Faker.fake();
+    #[hegel::test]
+    fn speak_conversions(tc: hegel::TestCase) {
+        {
+            let extra_attribute_count = tc.draw(generators::integers::<usize>().max_value(4));
+            let xml_root_attrs = (0..extra_attribute_count)
+                .map(|_| {
+                    (
+                        tc.draw(generators::from_regex(r#"x-[a-z]{1,8}"#)),
+                        text(&tc),
+                    )
+                })
+                .collect();
+            let speak = SpeakAttributes {
+                lang: tc.draw(generators::booleans()).then(|| text(&tc)),
+                base: tc.draw(generators::booleans()).then(|| text(&tc)),
+                on_lang_failure: tc.draw(generators::optional(generators::default::<
+                    OnLanguageFailure,
+                >())),
+                version: "1.1".to_string(),
+                xml_root_attrs,
+            };
 
             let xml = format!(
                 "<{} {}></{}>",
@@ -2267,11 +2269,9 @@ mod tests {
                 speak.to_string(),
                 SsmlElement::Speak
             );
-            println!("{}", xml);
 
             let mut reader = Reader::from_reader(xml.as_ref());
             let event = reader.read_event().unwrap();
-            println!("{:?}", event);
             if let Event::Start(bs) = event {
                 let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
 
@@ -2283,16 +2283,17 @@ mod tests {
         }
     }
 
-    #[test]
-    fn lang_conversions() {
-        for _ in 0..30 {
-            let lang: LangAttributes = Faker.fake();
+    #[hegel::test]
+    fn lang_conversions(tc: hegel::TestCase) {
+        {
+            let lang = tc.draw(
+                LangAttributes::default_generator().lang(generators::from_regex(r#"[ -~]{0,24}"#)),
+            );
 
             let xml = format!("<{} {}></{}>", SsmlElement::Lang, lang, SsmlElement::Lang);
 
             let mut reader = Reader::from_reader(xml.as_ref());
             let event = reader.read_event().unwrap();
-            println!("{:?}", event);
             if let Event::Start(bs) = event {
                 let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
 
@@ -2304,10 +2305,13 @@ mod tests {
         }
     }
 
-    #[test]
-    fn lookup_conversions() {
-        for _ in 0..30 {
-            let look: LookupAttributes = Faker.fake();
+    #[hegel::test]
+    fn lookup_conversions(tc: hegel::TestCase) {
+        {
+            let look = tc.draw(
+                LookupAttributes::default_generator()
+                    .lookup_ref(generators::from_regex(r#"[ -~]{0,24}"#)),
+            );
 
             let xml = format!(
                 "<{} {}></{}>",
@@ -2318,7 +2322,6 @@ mod tests {
 
             let mut reader = Reader::from_reader(xml.as_ref());
             let event = reader.read_event().unwrap();
-            println!("{:?}", event);
             if let Event::Start(bs) = event {
                 let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
 
@@ -2330,16 +2333,25 @@ mod tests {
         }
     }
 
-    #[test]
-    fn meta_conversions() {
-        for _ in 0..30 {
-            let meta: MetaAttributes = Faker.fake();
+    #[hegel::test]
+    fn meta_conversions(tc: hegel::TestCase) {
+        {
+            let value = text(&tc);
+            let (name, http_equiv) = if tc.draw(generators::booleans()) {
+                (Some(text(&tc)), None)
+            } else {
+                (None, Some(text(&tc)))
+            };
+            let meta = MetaAttributes {
+                name,
+                http_equiv,
+                content: value,
+            };
 
             let xml = format!("<{} {}></{}>", SsmlElement::Meta, meta, SsmlElement::Meta);
 
             let mut reader = Reader::from_reader(xml.as_ref());
             let event = reader.read_event().unwrap();
-            println!("{:?}", event);
             if let Event::Start(bs) = event {
                 let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
 
@@ -2351,10 +2363,12 @@ mod tests {
         }
     }
 
-    #[test]
-    fn token_conversions() {
-        for _ in 0..30 {
-            let token: TokenAttributes = Faker.fake();
+    #[hegel::test]
+    fn token_conversions(tc: hegel::TestCase) {
+        {
+            let token = TokenAttributes {
+                role: tc.draw(generators::booleans()).then(|| text(&tc)),
+            };
 
             let xml = format!(
                 "<{} {}></{}>",
@@ -2365,7 +2379,6 @@ mod tests {
 
             let mut reader = Reader::from_reader(xml.as_ref());
             let event = reader.read_event().unwrap();
-            println!("{:?}", event);
             if let Event::Start(bs) = event {
                 let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
 
@@ -2379,7 +2392,6 @@ mod tests {
 
             let mut reader = Reader::from_reader(xml.as_ref());
             let event = reader.read_event().unwrap();
-            println!("{:?}", event);
             if let Event::Start(bs) = event {
                 let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
 
@@ -2391,10 +2403,14 @@ mod tests {
         }
     }
 
-    #[test]
-    fn say_as_conversions() {
-        for _ in 0..30 {
-            let say_as: SayAsAttributes = Faker.fake();
+    #[hegel::test]
+    fn say_as_conversions(tc: hegel::TestCase) {
+        {
+            let say_as = SayAsAttributes {
+                interpret_as: text(&tc),
+                format: tc.draw(generators::booleans()).then(|| text(&tc)),
+                detail: tc.draw(generators::booleans()).then(|| text(&tc)),
+            };
 
             let xml = format!(
                 "<{} {}></{}>",
@@ -2405,7 +2421,6 @@ mod tests {
 
             let mut reader = Reader::from_reader(xml.as_ref());
             let event = reader.read_event().unwrap();
-            println!("{:?}", event);
             if let Event::Start(bs) = event {
                 let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
 
@@ -2417,10 +2432,15 @@ mod tests {
         }
     }
 
-    #[test]
-    fn phoneme_conversions() {
-        for _ in 0..30 {
-            let attr: PhonemeAttributes = Faker.fake();
+    #[hegel::test]
+    fn phoneme_conversions(tc: hegel::TestCase) {
+        {
+            let attr = PhonemeAttributes {
+                ph: text(&tc),
+                alphabet: tc
+                    .draw(generators::booleans())
+                    .then_some(PhonemeAlphabet::Ipa),
+            };
 
             let xml = format!(
                 "<{} {}></{}>",
@@ -2431,7 +2451,6 @@ mod tests {
 
             let mut reader = Reader::from_reader(xml.as_ref());
             let event = reader.read_event().unwrap();
-            println!("{:?}", event);
             if let Event::Start(bs) = event {
                 let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
 
@@ -2443,16 +2462,18 @@ mod tests {
         }
     }
 
-    #[test]
-    fn break_conversions() {
-        for _ in 0..30 {
-            let attr: BreakAttributes = Faker.fake();
+    #[hegel::test]
+    fn break_conversions(tc: hegel::TestCase) {
+        {
+            let attr = BreakAttributes {
+                strength: tc.draw(generators::optional(generators::default::<Strength>())),
+                time: optional_time(&tc),
+            };
 
             let xml = format!("<{} {}></{}>", SsmlElement::Break, attr, SsmlElement::Break);
 
             let mut reader = Reader::from_reader(xml.as_ref());
             let event = reader.read_event().unwrap();
-            println!("{:?}", event);
             if let Event::Start(bs) = event {
                 let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
 
@@ -2464,11 +2485,10 @@ mod tests {
         }
     }
 
-    #[test]
-    fn prosody_conversions() {
-        // Prosody has a lot more area to cover!
-        for _ in 0..50 {
-            let attr: ProsodyAttributes = Faker.fake();
+    #[hegel::test]
+    fn prosody_conversions(tc: hegel::TestCase) {
+        {
+            let attr = prosody(&tc);
 
             let xml = format!(
                 "<{} {}></{}>",
@@ -2477,11 +2497,8 @@ mod tests {
                 SsmlElement::Prosody
             );
 
-            println!("{}", xml);
-
             let mut reader = Reader::from_reader(xml.as_ref());
             let event = reader.read_event().unwrap();
-            println!("{:?}", event);
             if let Event::Start(bs) = event {
                 let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
 
@@ -2493,16 +2510,15 @@ mod tests {
         }
     }
 
-    #[test]
-    fn mark_conversions() {
-        for _ in 0..30 {
-            let attr: MarkAttributes = Faker.fake();
+    #[hegel::test]
+    fn mark_conversions(tc: hegel::TestCase) {
+        {
+            let attr = MarkAttributes { name: text(&tc) };
 
             let xml = format!("<{} {}></{}>", SsmlElement::Mark, attr, SsmlElement::Mark);
 
             let mut reader = Reader::from_reader(xml.as_ref());
             let event = reader.read_event().unwrap();
-            println!("{:?}", event);
             if let Event::Start(bs) = event {
                 let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
 
@@ -2514,10 +2530,10 @@ mod tests {
         }
     }
 
-    #[test]
-    fn emphasis_conversions() {
-        for _ in 0..30 {
-            let attr: EmphasisAttributes = Faker.fake();
+    #[hegel::test]
+    fn emphasis_conversions(tc: hegel::TestCase) {
+        {
+            let attr = tc.draw(generators::default::<EmphasisAttributes>());
 
             let xml = format!(
                 "<{} {}></{}>",
@@ -2528,7 +2544,6 @@ mod tests {
 
             let mut reader = Reader::from_reader(xml.as_ref());
             let event = reader.read_event().unwrap();
-            println!("{:?}", event);
             if let Event::Start(bs) = event {
                 let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
 
@@ -2540,16 +2555,15 @@ mod tests {
         }
     }
 
-    #[test]
-    fn sub_conversions() {
-        for _ in 0..30 {
-            let attr: SubAttributes = Faker.fake();
+    #[hegel::test]
+    fn sub_conversions(tc: hegel::TestCase) {
+        {
+            let attr = SubAttributes { alias: text(&tc) };
 
             let xml = format!("<{} {}></{}>", SsmlElement::Sub, attr, SsmlElement::Sub);
 
             let mut reader = Reader::from_reader(xml.as_ref());
             let event = reader.read_event().unwrap();
-            println!("{:?}", event);
             if let Event::Start(bs) = event {
                 let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
 
@@ -2561,10 +2575,23 @@ mod tests {
         }
     }
 
-    #[test]
-    fn lexicon_conversions() {
-        for _ in 0..30 {
-            let attr: LexiconAttributes = Faker.fake();
+    #[hegel::test]
+    fn lexicon_conversions(tc: hegel::TestCase) {
+        {
+            let attr = LexiconAttributes {
+                uri: tc
+                    .draw(generators::urls())
+                    .parse()
+                    .expect("Hegel-generated URL should parse as an HTTP URI"),
+                xml_id: text(&tc),
+                ty: tc.draw(generators::booleans()).then(|| {
+                    mediatype::MediaTypeBuf::new(
+                        mediatype::names::APPLICATION,
+                        mediatype::Name::new("pls+xml").expect("static media subtype should parse"),
+                    )
+                }),
+                fetch_timeout: optional_time(&tc),
+            };
 
             let xml = format!(
                 "<{} {}></{}>",
@@ -2575,7 +2602,6 @@ mod tests {
 
             let mut reader = Reader::from_reader(xml.as_ref());
             let event = reader.read_event().unwrap();
-            println!("{:?}", event);
             if let Event::Start(bs) = event {
                 let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
 
@@ -2587,16 +2613,33 @@ mod tests {
         }
     }
 
-    #[test]
-    fn voice_conversions() {
-        for _ in 0..30 {
-            let attr: VoiceAttributes = Faker.fake();
+    #[hegel::test]
+    fn voice_conversions(tc: hegel::TestCase) {
+        {
+            let language_count = tc.draw(generators::integers::<usize>().max_value(4));
+            let languages = (0..language_count)
+                .map(|_| LanguageAccentPair {
+                    lang: tc.draw(generators::from_regex(r#"[a-z]{2,8}"#)),
+                    accent: tc
+                        .draw(generators::booleans())
+                        .then(|| tc.draw(generators::from_regex(r#"[a-z]{2,8}"#))),
+                })
+                .collect();
+            let attr = VoiceAttributes {
+                gender: tc.draw(generators::optional(generators::default::<Gender>())),
+                age: tc.draw(generators::optional(generators::integers::<u8>())),
+                variant: NonZeroUsize::new(
+                    tc.draw(generators::integers::<usize>().min_value(0).max_value(100)),
+                ),
+                name: tc
+                    .draw(generators::vecs(generators::from_regex(r#"[!-~]{0,12}"#)).max_size(4)),
+                languages,
+            };
 
             let xml = format!("<{} {}></{}>", SsmlElement::Voice, attr, SsmlElement::Voice);
 
             let mut reader = Reader::from_reader(xml.as_ref());
             let event = reader.read_event().unwrap();
-            println!("{:?}", event);
             if let Event::Start(bs) = event {
                 let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
 
@@ -2608,16 +2651,42 @@ mod tests {
         }
     }
 
-    #[test]
-    fn audio_conversions() {
-        for _ in 0..50 {
-            let attr: AudioAttributes = Faker.fake();
+    #[hegel::test]
+    fn audio_conversions(tc: hegel::TestCase) {
+        {
+            let attr = AudioAttributes {
+                src: tc.draw(generators::booleans()).then(|| {
+                    tc.draw(generators::urls())
+                        .parse()
+                        .expect("Hegel-generated URL should parse as an HTTP URI")
+                }),
+                fetch_timeout: optional_time(&tc),
+                fetch_hint: tc.draw(generators::default::<FetchHint>()),
+                max_age: tc.draw(generators::optional(
+                    generators::integers::<usize>().max_value(10_000),
+                )),
+                max_stale: tc.draw(generators::optional(
+                    generators::integers::<usize>().max_value(10_000),
+                )),
+                clip_begin: time(&tc),
+                clip_end: optional_time(&tc),
+                repeat_count: NonZeroUsize::new(
+                    tc.draw(generators::integers::<usize>().min_value(1).max_value(100)),
+                )
+                .expect("generator only produces non-zero values"),
+                repeat_dur: optional_time(&tc),
+                sound_level: tc.draw(
+                    generators::floats::<f32>()
+                        .min_value(-100.0)
+                        .max_value(100.0),
+                ),
+                speed: tc.draw(generators::floats::<f32>().min_value(0.0).max_value(10.0)),
+            };
 
             let xml = format!("<{} {}></{}>", SsmlElement::Audio, attr, SsmlElement::Audio);
 
             let mut reader = Reader::from_reader(xml.as_ref());
             let event = reader.read_event().unwrap();
-            println!("{:?}", event);
             if let Event::Start(bs) = event {
                 let (ssml_element, parsed_element) = parse_element(bs, &mut reader).unwrap();
 
