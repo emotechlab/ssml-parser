@@ -392,7 +392,8 @@ fn parse_speak<R: io::BufRead>(elem: BytesStart, reader: &Reader<R>) -> Result<P
             attr_name => {
                 xml_root_attrs.insert(
                     String::from(attr_name),
-                    String::from_utf8(attr.value.into())?,
+                    attr.decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())?
+                        .to_string(),
                 );
             }
         }

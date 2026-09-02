@@ -25,5 +25,4 @@ regex = "1"
 
 [dev-dependencies]
 assert_approx_eq = "1.1"
-fake = { version = "5.1", features = ["derive", "http"] }
-rand = "0.10"
+hegeltest = "0.36.1"
