@@ -2241,7 +2241,7 @@ mod tests {
     // If we take one of our elements and write it out again in theory we should reparse it as the
     // same element!
 
-    #[hegel::test(test_cases = 30)]
+    #[hegel::test]
     fn speak_conversions(tc: hegel::TestCase) {
         {
             let extra_attribute_count = tc.draw(generators::integers::<usize>().max_value(4));
@@ -2283,7 +2283,7 @@ mod tests {
         }
     }
 
-    #[hegel::test(test_cases = 30)]
+    #[hegel::test]
     fn lang_conversions(tc: hegel::TestCase) {
         {
             let lang = tc.draw(
@@ -2305,7 +2305,7 @@ mod tests {
         }
     }
 
-    #[hegel::test(test_cases = 30)]
+    #[hegel::test]
     fn lookup_conversions(tc: hegel::TestCase) {
         {
             let look = tc.draw(
@@ -2333,7 +2333,7 @@ mod tests {
         }
     }
 
-    #[hegel::test(test_cases = 30)]
+    #[hegel::test]
     fn meta_conversions(tc: hegel::TestCase) {
         {
             let value = text(&tc);
@@ -2363,7 +2363,7 @@ mod tests {
         }
     }
 
-    #[hegel::test(test_cases = 30)]
+    #[hegel::test]
     fn token_conversions(tc: hegel::TestCase) {
         {
             let token = TokenAttributes {
@@ -2403,7 +2403,7 @@ mod tests {
         }
     }
 
-    #[hegel::test(test_cases = 30)]
+    #[hegel::test]
     fn say_as_conversions(tc: hegel::TestCase) {
         {
             let say_as = SayAsAttributes {
@@ -2432,7 +2432,7 @@ mod tests {
         }
     }
 
-    #[hegel::test(test_cases = 30)]
+    #[hegel::test]
     fn phoneme_conversions(tc: hegel::TestCase) {
         {
             let attr = PhonemeAttributes {
@@ -2462,7 +2462,7 @@ mod tests {
         }
     }
 
-    #[hegel::test(test_cases = 30)]
+    #[hegel::test]
     fn break_conversions(tc: hegel::TestCase) {
         {
             let attr = BreakAttributes {
@@ -2485,7 +2485,7 @@ mod tests {
         }
     }
 
-    #[hegel::test(test_cases = 50)]
+    #[hegel::test]
     fn prosody_conversions(tc: hegel::TestCase) {
         {
             let attr = prosody(&tc);
@@ -2510,7 +2510,7 @@ mod tests {
         }
     }
 
-    #[hegel::test(test_cases = 30)]
+    #[hegel::test]
     fn mark_conversions(tc: hegel::TestCase) {
         {
             let attr = MarkAttributes { name: text(&tc) };
@@ -2530,7 +2530,7 @@ mod tests {
         }
     }
 
-    #[hegel::test(test_cases = 30)]
+    #[hegel::test]
     fn emphasis_conversions(tc: hegel::TestCase) {
         {
             let attr = tc.draw(generators::default::<EmphasisAttributes>());
@@ -2555,7 +2555,7 @@ mod tests {
         }
     }
 
-    #[hegel::test(test_cases = 30)]
+    #[hegel::test]
     fn sub_conversions(tc: hegel::TestCase) {
         {
             let attr = SubAttributes { alias: text(&tc) };
@@ -2575,7 +2575,7 @@ mod tests {
         }
     }
 
-    #[hegel::test(test_cases = 30)]
+    #[hegel::test]
     fn lexicon_conversions(tc: hegel::TestCase) {
         {
             let attr = LexiconAttributes {
@@ -2613,7 +2613,7 @@ mod tests {
         }
     }
 
-    #[hegel::test(test_cases = 30)]
+    #[hegel::test]
     fn voice_conversions(tc: hegel::TestCase) {
         {
             let language_count = tc.draw(generators::integers::<usize>().max_value(4));
@@ -2651,7 +2651,7 @@ mod tests {
         }
     }
 
-    #[hegel::test(test_cases = 50)]
+    #[hegel::test]
     fn audio_conversions(tc: hegel::TestCase) {
         {
             let attr = AudioAttributes {
