@@ -220,9 +220,9 @@ checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 
 [[package]]
 name = "hegeltest"
-version = "0.36.1"
+version = "0.39.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "088b1544dd8662b6376ad20b9e7485addeac258870fd21ac4928a41c12893893"
+checksum = "9ba2973d5ed7f27aa227fe9cf810935cd11d3f6ea2bea4ec1b7da8df4111e678"
 dependencies = [
  "crc32fast",
  "dashu-int",
@@ -232,14 +232,15 @@ dependencies = [
  "parking_lot",
  "rand",
  "rustc-hash",
+ "serde_json",
  "tempfile",
 ]
 
 [[package]]
 name = "hegeltest-c"
-version = "0.34.1"
+version = "0.36.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a1c3ba04a2ff1a9036de907ce213a9ea8641391521b5b63ba38a486250c9372"
+checksum = "44478d967e83cff0d0b8585c808020dc75163213671a699af845944e932da796"
 dependencies = [
  "dashu-int",
  "hashbrown",
@@ -254,9 +255,9 @@ dependencies = [
 
 [[package]]
 name = "hegeltest-macros"
-version = "0.36.1"
+version = "0.39.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c014d8ae888befec79bf9485a55a7133d1c6f73fbc085a5ceab3cdf311a77c01"
+checksum = "65eb7ead3b57837ea390b4ab12e61bd5de87b2d50d03becd525bf52be02592b0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -504,6 +505,48 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
+name = "serde"
+version = "1.0.229"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba"
+dependencies = [
+ "serde_core",
+]
+
+[[package]]
+name = "serde_core"
+version = "1.0.229"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67dca2c9c51e58a4791a4b1ed58308b39c64224d349a935ab5039aa360942a48"
+dependencies = [
+ "serde_derive",
+]
+
+[[package]]
+name = "serde_derive"
+version = "1.0.229"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.4",
+]
+
+[[package]]
+name = "serde_json"
+version = "1.0.151"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14"
+dependencies = [
+ "itoa",
+ "memchr",
+ "serde",
+ "serde_core",
+ "zmij",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -593,3 +636,9 @@ checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
 dependencies = [
  "windows-link",
 ]
+
+[[package]]
+name = "zmij"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
