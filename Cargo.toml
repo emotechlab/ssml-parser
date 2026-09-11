@@ -25,4 +25,4 @@ regex = "1"
 
 [dev-dependencies]
 assert_approx_eq = "1.1"
-hegeltest = "0.39.4"
+hegeltest = "0.41.0"
